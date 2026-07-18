@@ -8,3 +8,5 @@ networkx>=3.2      # graph cycle detection for wash-trade ring (matched-order) d
 
 psycopg[binary]>=3.2        # CockroachDB connection (Milestone 2)
 boto3>=1.34                 # AWS Bedrock — embeddings + explanations (Milestone 3)
+fastapi>=0.110              # demo web app (Milestone 4)
+uvicorn>=0.29               # ASGI server for the demo app
