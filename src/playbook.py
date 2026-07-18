@@ -35,7 +35,7 @@ def search_similar(embedding, k: int = 5) -> list[dict]:
     """Return the k playbook patterns most similar to `embedding` (cosine)."""
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT pattern_id, category, description, outcome, "
+            "SELECT pattern_id, category, description, source_case, outcome, "
             "       embedding <=> %s::vector AS cosine_distance "
             "FROM flagged_patterns "
             "ORDER BY embedding <=> %s::vector "
