@@ -1,0 +1,33 @@
+# Secrets — never commit
+.env
+.env.local
+*.pem
+*_credentials.json
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Data — all pulls and derived outputs are regenerable; keep them out of git
+data/
+*.parquet
+*.csv.gz
+
+# AWS / cloud
+.aws/
+*.tfstate
+*.tfstate.backup
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp

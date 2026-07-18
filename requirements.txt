@@ -1,0 +1,11 @@
+# Core (Milestone 1 — local signal pipeline). Deliberately dependency-light:
+# we call the Dune and Etherscan REST APIs directly with `requests` rather than
+# pulling in heavier SDKs, so this runs cleanly on Python 3.14.
+requests>=2.31
+python-dotenv>=1.0
+pandas>=2.2
+networkx>=3.2      # graph cycle detection for wash-trade ring (matched-order) detection
+
+# --- Added in later milestones (kept here for reference, commented out) ---
+# psycopg[binary]>=3.2      # CockroachDB (Milestone 2)
+# boto3>=1.34               # AWS SageMaker / Bedrock / S3 (Milestone 3)
