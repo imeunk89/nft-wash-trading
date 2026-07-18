@@ -76,6 +76,14 @@
   .cinfo{flex:1;font-size:13.5px} .cinfo b{font-family:monospace}
   .hcx{color:var(--flag);font-size:12px}
   .match{color:var(--dim);font-size:12.5px;white-space:nowrap} .match b{color:var(--accent)}
+  .susp{display:flex;flex-direction:column;align-items:center;justify-content:center;width:58px;
+        height:52px;border-radius:9px;flex:none;border:1px solid var(--line)}
+  .ssc{font-size:22px;font-weight:750;line-height:1;font-variant-numeric:tabular-nums}
+  .ssl{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin-top:3px}
+  .sb-high{background:rgba(255,93,93,.12);border-color:rgba(255,93,93,.4)} .sb-high .ssc{color:var(--flag)}
+  .sb-elev{background:rgba(255,184,77,.1);border-color:rgba(255,184,77,.35)} .sb-elev .ssc{color:var(--novel)}
+  .sb-low{background:var(--panel2)} .sb-low .ssc{color:var(--suppress)}
+  .sfac{color:var(--dim);font-size:12px;margin-top:4px}
 
   /* ---- memory: guided story ---- */
   .story{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px}
@@ -216,10 +224,13 @@ async function loadCatch(){
   const dates=Object.keys(byDate).sort().reverse();
   catchList.innerHTML=dates.map((d,di)=>{
     const rows=byDate[d].map(c=>{
-      const hot=c.nearest_distance!=null&&c.nearest_distance<=0.40;
-      const match=c.nearest_confirmed?`resembles confirmed <b>${c.nearest_confirmed}</b> · distance ${c.nearest_distance}`:'no memory match';
-      return `<div class="catch ${hot?'hot':''}"><span class="pri ${hot?'hi':''}">${hot?'HIGH':'watch'}</span>
-        <span class="cinfo"><b>${c.case_id}</b> · ${c.n_wallets} wallets · ${c.n_trades} self-trades${c.has_high_confidence?' · <span class="hcx">same-NFT loop</span>':''}</span>
+      const s=c.suspicion, hot=s.band==='high';
+      const bc=s.band==='high'?'sb-high':s.band==='elevated'?'sb-elev':'sb-low';
+      const match=c.nearest_confirmed?`resembles confirmed <b>${c.nearest_confirmed}</b> · dist ${c.nearest_distance}`:'no memory match';
+      return `<div class="catch ${hot?'hot':''}">
+        <div class="susp ${bc}"><div class="ssc">${s.score}</div><div class="ssl">suspicion</div></div>
+        <div class="cinfo"><b>${c.case_id}</b> · ${c.n_wallets} wallets · ${c.n_trades} self-trades${c.has_high_confidence?' · <span class="hcx">same-NFT loop</span>':''}
+          <div class="sfac">${s.factors.join(' · ')||'—'}</div></div>
         <span class="match">${match}</span></div>`;}).join('');
     return `<div class="run"><div class="runhdr">${di===0?'🔴 Latest run · ':''}${d} — <b>${byDate[d].length}</b> new suspected ring(s)</div>${rows}</div>`;
   }).join('');

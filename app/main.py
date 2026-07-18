@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from src import bedrock
 from src.db import connect
 from src.feedback_loop import confirm, reject, triage
+from src.suspicion import suspicion_score
 
 app = FastAPI(title="NFT Wash-Trading Memory Agent")
 HERE = Path(__file__).parent
@@ -133,6 +134,8 @@ def api_catch() -> dict:
         r["n_trades"] = int(r["n_trades"])
         r["nearest_distance"] = (round(float(r["nearest_distance"]), 4)
                                  if r["nearest_distance"] is not None else None)
+        r["suspicion"] = suspicion_score(
+            r["nearest_distance"], r["has_high_confidence"], r["n_trades"])
     return {"catches": rows}
 
 
