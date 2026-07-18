@@ -31,16 +31,29 @@ def add_pattern(category: str, description: str, embedding,
         return str(pid)
 
 
-def search_similar(embedding, k: int = 5) -> list[dict]:
-    """Return the k playbook patterns most similar to `embedding` (cosine)."""
+def search_similar(embedding, k: int = 5,
+                   outcomes: tuple[str, ...] | None = ("confirmed",)) -> list[dict]:
+    """Return the k playbook patterns most similar to `embedding` (cosine).
+
+    By default only 'confirmed' patterns are searched — the trusted memory.
+    Pass outcomes=("rejected",) to check whether activity resembles a known
+    false positive (used to suppress repeat mistakes), or None to search all.
+    """
+    where = ""
+    params: list = [_vec(embedding)]
+    if outcomes is not None:
+        where = "WHERE outcome = ANY(%s) "
+        params.append(list(outcomes))
+    params += [_vec(embedding), k]
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             "SELECT pattern_id, category, description, source_case, outcome, "
             "       embedding <=> %s::vector AS cosine_distance "
             "FROM flagged_patterns "
+            + where +
             "ORDER BY embedding <=> %s::vector "
             "LIMIT %s",
-            (_vec(embedding), _vec(embedding), k),
+            params,
         )
         cols = [d[0] for d in cur.description]
         return [dict(zip(cols, row)) for row in cur.fetchall()]
