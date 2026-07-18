@@ -13,51 +13,78 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--txt);
        font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 60px}
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  .wrap{max-width:1000px;margin:0 auto;padding:26px 20px 70px}
   header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;
-         border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:22px}
+         border-bottom:1px solid var(--line);padding-bottom:16px}
   h1{font-size:20px;margin:0 0 4px}
-  .sub{color:var(--dim);font-size:13px;max-width:520px}
+  .sub{color:var(--dim);font-size:13px;max-width:560px}
   .mem{background:var(--panel);border:1px solid var(--line);border-radius:10px;
-       padding:10px 14px;text-align:right;white-space:nowrap}
+       padding:9px 13px;text-align:right;white-space:nowrap;font-size:13px}
   .mem b{color:var(--accent);font-variant-numeric:tabular-nums}
   .mem .r{color:var(--suppress)}
-  label{display:block;color:var(--dim);font-size:12px;text-transform:uppercase;
-        letter-spacing:.06em;margin:0 0 8px}
-  textarea{width:100%;min-height:84px;resize:vertical;background:var(--panel);
-           color:var(--txt);border:1px solid var(--line);border-radius:10px;
-           padding:12px 14px;font:inherit}
+  .tabs{display:flex;gap:6px;margin:18px 0 20px}
+  .tab{padding:8px 16px;border:1px solid var(--line);background:var(--panel);
+       border-radius:9px;cursor:pointer;font-size:13.5px;color:var(--dim)}
+  .tab.on{color:var(--txt);border-color:var(--accent);background:var(--panel2)}
+  .lead{color:var(--dim);font-size:13.5px;margin:0 0 16px}
+
+  /* ---- cases view ---- */
+  .cases{display:grid;grid-template-columns:250px 1fr;gap:18px}
+  .caselist{display:flex;flex-direction:column;gap:8px;max-height:640px;overflow:auto}
+  .ci{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+      padding:11px 13px;cursor:pointer}
+  .ci:hover{border-color:var(--accent)} .ci.on{border-color:var(--accent);background:var(--panel2)}
+  .ci .id{font-weight:700;font-size:14px} .ci .m{color:var(--dim);font-size:12px;margin-top:3px}
+  .ci .hc{color:var(--flag);font-size:11px}
+  .detail{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;min-height:400px}
+  .detail h2{margin:0 0 4px;font-size:18px;display:flex;align-items:center;gap:10px}
+  .badge{font-size:11px;padding:3px 9px;border-radius:6px;font-weight:600}
+  .badge.hc{background:rgba(255,93,93,.15);color:var(--flag)}
+  .nums{display:flex;gap:22px;margin:16px 0 8px;flex-wrap:wrap}
+  .nums div{display:flex;flex-direction:column}
+  .nums b{font-size:26px;font-variant-numeric:tabular-nums;line-height:1.1}
+  .nums span{color:var(--dim);font-size:11.5px;text-transform:uppercase;letter-spacing:.04em}
+  .graph{background:var(--bg);border:1px solid var(--line);border-radius:10px;margin:14px 0 8px}
+  .cap{color:var(--dim);font-size:12.5px;margin:6px 0 16px}
+  .evi{margin-top:16px} .evi .t{color:var(--accent);font-size:11.5px;text-transform:uppercase;
+       letter-spacing:.05em;margin-bottom:8px}
+  .evi.smoking .t{color:var(--flag)}
+  table{border-collapse:collapse;font-size:13px;width:100%;max-width:360px}
+  td{padding:5px 10px;border-bottom:1px solid var(--line)}
+  td:first-child{font-family:monospace;color:var(--txt)} td:last-child{text-align:right;color:var(--flag);font-weight:600}
+  .wl{display:flex;flex-direction:column;gap:4px;font-family:monospace;font-size:12.5px}
+  .foot{color:var(--dim);font-size:11.5px;margin-top:16px;font-style:italic}
+  .placeholder{color:var(--dim);text-align:center;padding:80px 0}
+
+  /* ---- memory tab (triage) ---- */
+  label{display:block;color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px}
+  textarea{width:100%;min-height:80px;resize:vertical;background:var(--panel);color:var(--txt);
+           border:1px solid var(--line);border-radius:10px;padding:12px 14px;font:inherit}
   .chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
-  .chip{background:var(--panel2);border:1px solid var(--line);color:var(--txt);
-        border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer}
-  .chip:hover{border-color:var(--accent)}
-  .chip .d{color:var(--flag)} .chip .g{color:var(--ok)}
+  .chip{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:999px;
+        padding:6px 12px;font-size:12.5px;cursor:pointer}
+  .chip:hover{border-color:var(--accent)} .chip .d{color:var(--flag)} .chip .g{color:var(--ok)}
   .row{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
-  button{background:var(--accent);color:#04101f;border:0;border-radius:9px;
-         padding:10px 18px;font-weight:650;cursor:pointer;font:inherit}
+  button{background:var(--accent);color:#04101f;border:0;border-radius:9px;padding:10px 18px;font-weight:650;cursor:pointer;font:inherit}
   button.ghost{background:transparent;color:var(--dim);border:1px solid var(--line);font-weight:500}
   button:disabled{opacity:.5;cursor:default}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
-        padding:18px;margin-top:22px;display:none}
-  .verdict{display:inline-flex;align-items:center;gap:8px;font-weight:750;
-           font-size:15px;padding:5px 12px;border-radius:8px}
-  .v-flag{background:rgba(255,93,93,.14);color:var(--flag)}
-  .v-suppress{background:rgba(124,136,153,.16);color:var(--suppress)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-top:20px;display:none}
+  .verdict{display:inline-flex;align-items:center;gap:8px;font-weight:750;font-size:15px;padding:5px 12px;border-radius:8px}
+  .v-flag{background:rgba(255,93,93,.14);color:var(--flag)} .v-suppress{background:rgba(124,136,153,.16);color:var(--suppress)}
   .v-novel{background:rgba(255,184,77,.14);color:var(--novel)}
   .dist{font-variant-numeric:tabular-nums;color:var(--dim);font-size:13px;margin-left:auto}
-  .prec{margin-top:14px;padding:12px 14px;background:var(--panel2);border-radius:9px;
-        border-left:3px solid var(--line);font-size:13.5px}
+  .prec{margin-top:14px;padding:12px 14px;background:var(--panel2);border-radius:9px;border-left:3px solid var(--line);font-size:13.5px}
   .prec .t{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
-  .prec.confirmed{border-left-color:var(--flag)}
-  .prec.rejected{border-left-color:var(--suppress)}
+  .prec.confirmed{border-left-color:var(--flag)} .prec.rejected{border-left-color:var(--suppress)}
   .explain{margin-top:14px;font-size:14px;color:#dbe7f5}
   .explain .t{color:var(--accent);font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
   .verdictbtns{margin-top:16px;display:flex;gap:10px}
-  .b-confirm{background:var(--flag);color:#1a0505}
-  .b-reject{background:var(--suppress);color:#0a0e14}
-  .hint{color:var(--dim);font-size:12.5px;margin-top:26px;border-top:1px solid var(--line);padding-top:16px}
-  .spin{color:var(--dim);font-size:13px;margin-top:20px;display:none}
+  .b-confirm{background:var(--flag);color:#1a0505} .b-reject{background:var(--suppress);color:#0a0e14}
+  .hint{color:var(--dim);font-size:12.5px;margin-top:24px;border-top:1px solid var(--line);padding-top:14px}
+  .spin{color:var(--dim);font-size:13px;margin-top:18px;display:none}
   code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12.5px}
+  [hidden]{display:none!important}
 </style>
 </head>
 <body>
@@ -65,8 +92,8 @@
   <header>
     <div>
       <h1>NFT Wash-Trading Memory Agent</h1>
-      <div class="sub">Score on-chain activity against a playbook of confirmed manipulation cases.
-      Every analyst verdict is written to CockroachDB, so the memory gets sharper with use.</div>
+      <div class="sub">Detected collusion cases on LooksRare (2022), with the wallets and the
+      decisive evidence — backed by a CockroachDB memory that sharpens with each analyst verdict.</div>
     </div>
     <div class="mem">
       <div>memory: <b id="mConf">–</b> confirmed</div>
@@ -74,100 +101,164 @@
     </div>
   </header>
 
-  <label>New / unseen activity</label>
-  <textarea id="act" placeholder="Describe some on-chain NFT activity in plain language…"></textarea>
-
-  <div class="chips" id="chips"></div>
-
-  <div class="row">
-    <button id="btnTriage" onclick="doTriage()">Triage ▸</button>
-    <button class="ghost" onclick="resetDemo()">Reset demo memory</button>
+  <div class="tabs">
+    <div class="tab on" id="t1" onclick="showTab('cases')">Detected cases</div>
+    <div class="tab" id="t2" onclick="showTab('memory')">Test the memory</div>
   </div>
 
-  <div class="spin" id="spin">scoring against memory · embedding via Bedrock · vector search on CockroachDB…</div>
+  <!-- ===================== CASES ===================== -->
+  <section id="sec-cases">
+    <p class="lead">Each case is a cluster of wallets that traded among themselves in closed loops
+    to fake volume. Pick one to see who did what.</p>
+    <div class="cases">
+      <div class="caselist" id="caselist"></div>
+      <div class="detail" id="detail"><div class="placeholder">← select a case</div></div>
+    </div>
+  </section>
 
-  <div class="card" id="card">
-    <div class="row" style="margin:0">
-      <span id="verdict" class="verdict"></span>
-      <span class="dist" id="dist"></span>
+  <!-- ===================== MEMORY ===================== -->
+  <section id="sec-memory" hidden>
+    <label>New / unseen activity</label>
+    <textarea id="act" placeholder="Describe some on-chain NFT activity in plain language…"></textarea>
+    <div class="chips" id="chips"></div>
+    <div class="row">
+      <button id="btnTriage" onclick="doTriage()">Triage ▸</button>
+      <button class="ghost" onclick="resetDemo()">Reset demo memory</button>
     </div>
-    <div id="precConfirmed"></div>
-    <div id="precRejected"></div>
-    <div class="explain" id="explainBox" style="display:none">
-      <div class="t">Why flagged (AWS Bedrock · Claude)</div>
-      <div id="explain"></div>
+    <div class="spin" id="spin">scoring · embedding via Bedrock · vector search on CockroachDB…</div>
+    <div class="card" id="card">
+      <div class="row" style="margin:0">
+        <span id="verdict" class="verdict"></span>
+        <span class="dist" id="dist"></span>
+      </div>
+      <div id="precConfirmed"></div>
+      <div id="precRejected"></div>
+      <div class="explain" id="explainBox" hidden>
+        <div class="t">Why flagged (AWS Bedrock · Claude)</div><div id="explain"></div>
+      </div>
+      <div class="verdictbtns">
+        <button class="b-confirm" onclick="verdict('confirm')">✓ Confirm — it's manipulation</button>
+        <button class="b-reject" onclick="verdict('reject')">✕ Reject — false positive</button>
+      </div>
     </div>
-    <div class="verdictbtns">
-      <button class="b-confirm" onclick="verdict('confirm')">✓ Confirm — it's manipulation</button>
-      <button class="b-reject" onclick="verdict('reject')">✕ Reject — false positive</button>
-    </div>
-  </div>
-
-  <div class="hint">
-    <b>See it learn:</b> Triage <span style="color:var(--flag)">New scheme</span> → <b>Confirm</b> it →
-    Triage <span style="color:var(--flag)">Same scheme, reworded</span>: the match distance drops (caught earlier).
-    Then Triage <span style="color:var(--ok)">Benign buying</span> → <b>Reject</b> → Triage
-    <span style="color:var(--ok)">Benign, reworded</span>: now auto-<code>suppressed</code>.
-  </div>
+    <div class="hint"><b>See it learn:</b> Triage <span style="color:var(--flag)">New scheme</span> →
+    <b>Confirm</b> → Triage <span style="color:var(--flag)">Same scheme, reworded</span>: match distance drops.
+    Then <span style="color:var(--ok)">Benign</span> → <b>Reject</b> → reworded benign is auto-<code>suppressed</code>.</div>
+  </section>
 </div>
 
 <script>
-const PRESETS = [
-  {label:'🔴 New scheme', cls:'d', text:"Two fresh wallets funded minutes apart by the same parent address traded a single NFT back and forth about forty times at nearly identical prices."},
-  {label:'🔴 Same scheme, reworded', cls:'d', text:"A sibling pair of wallets bankrolled from one common source ping-ponged the same token dozens of times at flat prices."},
-  {label:'🟢 Benign buying', cls:'g', text:"One collector bought ten different NFTs from ten unrelated sellers during a marketplace fee-rebate promotion week."},
-  {label:'🟢 Benign, reworded', cls:'g', text:"A user purchased a batch of NFTs from many distinct sellers while trading-fee rebates were live."},
-];
-const chips = document.getElementById('chips');
-PRESETS.forEach(p=>{const c=document.createElement('span');c.className='chip';
-  c.innerHTML=`<span class="${p.cls}">${p.label}</span>`;
-  c.onclick=()=>{document.getElementById('act').value=p.text;};chips.appendChild(c);});
-
-function setStats(s){document.getElementById('mConf').textContent=s.confirmed??0;
-  document.getElementById('mRej').textContent=s.rejected??0;}
+const short=w=>w.slice(0,6)+'…'+w.slice(-4);
+function setStats(s){mConf.textContent=s.confirmed??0;mRej.textContent=s.rejected??0;}
 async function refresh(){setStats(await (await fetch('/api/stats')).json());}
-refresh();
 
+/* ---------- tabs ---------- */
+function showTab(which){
+  sec_cases.hidden = which!=='cases'; sec_memory.hidden = which!=='memory';
+  t1.classList.toggle('on',which==='cases'); t2.classList.toggle('on',which==='memory');
+}
+const sec_cases=document.getElementById('sec-cases'), sec_memory=document.getElementById('sec-memory');
+
+/* ---------- cases ---------- */
+let CASES=[];
+async function loadCases(){
+  CASES=await (await fetch('/api/cases')).json();
+  caselist.innerHTML=CASES.map((c,i)=>`
+    <div class="ci" id="ci${i}" onclick="pickCase(${i})">
+      <div class="id">${c.case_id} ${c.has_high_confidence?'<span class="hc">●</span>':''}</div>
+      <div class="m">${c.n_wallets} wallets · ${c.n_trades} trades · ${c.n_collections} coll.</div>
+    </div>`).join('');
+  if(CASES.length) pickCase(0);
+}
+async function pickCase(i){
+  document.querySelectorAll('.ci').forEach(e=>e.classList.remove('on'));
+  document.getElementById('ci'+i).classList.add('on');
+  const d=await (await fetch('/api/case/'+CASES[i].case_id)).json();
+  renderDetail(d);
+}
+function graphSVG(wallets, edges){
+  const W=560,H=430,cx=W/2,cy=H/2,R=Math.min(W,H)/2-64,nr=26;
+  const idx={}; wallets.forEach((w,i)=>idx[w]=i);
+  const pos=wallets.map((w,i)=>{const a=-Math.PI/2+i*2*Math.PI/wallets.length;
+    return{x:cx+R*Math.cos(a),y:cy+R*Math.sin(a)};});
+  const maxC=Math.max(...edges.map(e=>e.count),1);
+  let E='';
+  edges.forEach(e=>{const i=idx[e.source],j=idx[e.target]; if(i==null||j==null||i===j)return;
+    const a=pos[i],b=pos[j],dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;
+    const sx=a.x+ux*nr,sy=a.y+uy*nr,ex=b.x-ux*nr,ey=b.y-uy*nr;
+    const off=28,mx=(sx+ex)/2-uy*off,my=(sy+ey)/2+ux*off;
+    const w=(1.5+5*e.count/maxC).toFixed(1);
+    E+=`<path d="M${sx.toFixed(1)},${sy.toFixed(1)} Q${mx.toFixed(1)},${my.toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}" fill="none" stroke="#ff6b6b" stroke-opacity=".5" stroke-width="${w}" marker-end="url(#arw)"/>`;
+    E+=`<text x="${mx.toFixed(1)}" y="${my.toFixed(1)}" fill="#ffb0b0" font-size="11" text-anchor="middle">${e.count}</text>`;
+  });
+  let N='';
+  wallets.forEach((w,i)=>{const p=pos[i];
+    N+=`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${nr}" fill="#1b2230" stroke="#5b9dff" stroke-width="2"/>`;
+    N+=`<text x="${p.x.toFixed(1)}" y="${(p.y+4).toFixed(1)}" fill="#e6edf3" font-size="10" text-anchor="middle" font-family="monospace">${w.slice(0,6)}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%"><defs>
+    <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#ff6b6b" fill-opacity=".75"/></marker></defs>${E}${N}</svg>`;
+}
+function renderDetail(d){
+  const s=d.summary;
+  const toks=d.recirculated_tokens.map(t=>`<tr><td>#${t.token_id}</td><td>${t.times}×</td></tr>`).join('');
+  const wl=d.wallets.map(w=>`<a href="https://etherscan.io/address/${w}" target="_blank">${w}</a>`).join('');
+  detail.innerHTML=`
+    <h2>Case ${s.case_id} ${s.has_high_confidence?'<span class="badge hc">same-NFT loop ✓</span>':''}</h2>
+    <div class="nums">
+      <div><b>${s.n_wallets}</b><span>wallets</span></div>
+      <div><b>${s.n_trades}</b><span>self-trades</span></div>
+      <div><b>${s.active_days}</b><span>days active</span></div>
+      <div><b>${Math.round(s.total_eth).toLocaleString()}</b><span>ETH volume*</span></div>
+    </div>
+    <div class="graph">${graphSVG(d.wallets,d.edges)}</div>
+    <p class="cap">Arrows = who sold to whom; numbers = how many times. Trades circling back among the
+    same wallets is the wash-trading signature — no real ownership ever leaves the group.</p>
+    ${d.recirculated_tokens.length?`<div class="evi smoking"><div class="t">⚑ Decisive evidence — the SAME NFT bounced around these wallets</div>
+      <table>${toks}</table></div>`:''}
+    <div class="evi"><div class="t">Member wallets (click to inspect on Etherscan)</div><div class="wl">${wl}</div></div>
+    <p class="foot">* ETH volume is inflated by LooksRare's LOOKS trading-reward farming; the trade count
+    and symmetry are the real signal, not the dollar value.</p>`;
+}
+
+/* ---------- memory / triage ---------- */
+const PRESETS=[
+  {label:'🔴 New scheme',cls:'d',text:"Two fresh wallets funded minutes apart by the same parent address traded a single NFT back and forth about forty times at nearly identical prices."},
+  {label:'🔴 Same scheme, reworded',cls:'d',text:"A sibling pair of wallets bankrolled from one common source ping-ponged the same token dozens of times at flat prices."},
+  {label:'🟢 Benign buying',cls:'g',text:"One collector bought ten different NFTs from ten unrelated sellers during a marketplace fee-rebate promotion week."},
+  {label:'🟢 Benign, reworded',cls:'g',text:"A user purchased a batch of NFTs from many distinct sellers while trading-fee rebates were live."},
+];
+PRESETS.forEach(p=>{const c=document.createElement('span');c.className='chip';
+  c.innerHTML=`<span class="${p.cls}">${p.label}</span>`;c.onclick=()=>{act.value=p.text;};chips.appendChild(c);});
 const VMAP={flag:['FLAG','v-flag','⚑'],suppress:['SUPPRESS','v-suppress','⊘'],novel:['NOVEL','v-novel','◈']};
-
 async function doTriage(){
-  const activity=document.getElementById('act').value.trim(); if(!activity)return;
-  document.getElementById('spin').style.display='block';
-  document.getElementById('card').style.display='none';
-  document.getElementById('btnTriage').disabled=true;
+  const activity=act.value.trim(); if(!activity)return;
+  spin.style.display='block';card.style.display='none';btnTriage.disabled=true;
   try{
-    const r=await (await fetch('/api/triage',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({activity})})).json();
+    const r=await (await fetch('/api/triage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({activity})})).json();
     const [txt,cls,ic]=VMAP[r.verdict]||['?','v-novel','?'];
-    document.getElementById('verdict').className='verdict '+cls;
-    document.getElementById('verdict').textContent=ic+' '+txt;
-    const nc=r.nearest_confirmed, nr=r.nearest_rejected;
-    document.getElementById('dist').textContent = nc? `nearest confirmed · cosine ${nc.distance}`:'';
-    document.getElementById('precConfirmed').innerHTML = nc?
-      `<div class="prec confirmed"><div class="t">Nearest confirmed precedent · ${nc.source_case} · cosine ${nc.distance}</div>${nc.description}</div>`:'';
-    document.getElementById('precRejected').innerHTML = nr?
-      `<div class="prec rejected"><div class="t">Nearest known false-positive · cosine ${nr.distance}</div>${nr.description}</div>`:'';
-    const eb=document.getElementById('explainBox');
-    if(r.explanation){eb.style.display='block';document.getElementById('explain').textContent=r.explanation;}
-    else eb.style.display='none';
-    if(r.stats)setStats(r.stats);
-    document.getElementById('card').style.display='block';
-  }finally{
-    document.getElementById('spin').style.display='none';
-    document.getElementById('btnTriage').disabled=false;
-  }
+    verdict.className='verdict '+cls;verdict.textContent=ic+' '+txt;
+    const nc=r.nearest_confirmed,nr=r.nearest_rejected;
+    dist.textContent=nc?`nearest confirmed · cosine ${nc.distance}`:'';
+    precConfirmed.innerHTML=nc?`<div class="prec confirmed"><div class="t">Nearest confirmed precedent · ${nc.source_case} · cosine ${nc.distance}</div>${nc.description}</div>`:'';
+    precRejected.innerHTML=nr?`<div class="prec rejected"><div class="t">Nearest known false-positive · cosine ${nr.distance}</div>${nr.description}</div>`:'';
+    if(r.explanation){explainBox.hidden=false;explain.textContent=r.explanation;}else explainBox.hidden=true;
+    if(r.stats)setStats(r.stats);card.style.display='block';
+  }finally{spin.style.display='none';btnTriage.disabled=false;}
 }
 async function verdict(kind){
-  const activity=document.getElementById('act').value.trim(); if(!activity)return;
-  const r=await (await fetch('/api/'+kind,{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({activity})})).json();
+  const activity=act.value.trim(); if(!activity)return;
+  const r=await (await fetch('/api/'+kind,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({activity})})).json();
   if(r.stats)setStats(r.stats);
-  const v=document.getElementById('verdict');
-  v.className='verdict '+(kind==='confirm'?'v-flag':'v-suppress');
-  v.textContent=(kind==='confirm'?'✓ learned as CONFIRMED':'✕ learned as REJECTED');
+  verdict_el().className='verdict '+(kind==='confirm'?'v-flag':'v-suppress');
+  verdict_el().textContent=(kind==='confirm'?'✓ learned as CONFIRMED':'✕ learned as REJECTED');
 }
+function verdict_el(){return document.getElementById('verdict');}
 async function resetDemo(){const r=await (await fetch('/api/reset',{method:'POST'})).json();
-  if(r.stats)setStats(r.stats);document.getElementById('card').style.display='none';}
+  if(r.stats)setStats(r.stats);card.style.display='none';}
+
+refresh(); loadCases();
 </script>
 </body>
 </html>

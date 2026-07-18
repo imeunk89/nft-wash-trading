@@ -96,6 +96,66 @@ def api_stats() -> dict:
     return _stats()
 
 
+@app.get("/api/cases")
+def api_cases() -> list[dict]:
+    """Real detected collusion cases with their headline evidence numbers."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT case_id, n_wallets, n_rings, has_high_confidence, n_trades, "
+            "total_eth, active_days, n_collections "
+            "FROM collusion_cases ORDER BY n_trades DESC LIMIT 20"
+        )
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+    for r in rows:
+        r["total_eth"] = float(r["total_eth"]) if r["total_eth"] is not None else None
+        r["active_days"] = float(r["active_days"]) if r["active_days"] is not None else None
+        r["n_trades"] = int(r["n_trades"])
+    return rows
+
+
+@app.get("/api/case/{case_id}")
+def api_case(case_id: str) -> dict:
+    """Full evidence for one case: the ring graph edges, the same-NFT loops that
+    recirculated (the decisive high-confidence signal), and the member wallets."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT wallets, n_wallets, n_trades, total_eth, active_days, "
+            "has_high_confidence, n_collections FROM collusion_cases WHERE case_id = %s",
+            (case_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return {"error": "case not found"}
+        wallets = row[0].split(";")
+        summary = {
+            "case_id": case_id, "n_wallets": row[1], "n_trades": int(row[2]),
+            "total_eth": float(row[3]) if row[3] is not None else None,
+            "active_days": float(row[4]) if row[4] is not None else None,
+            "has_high_confidence": row[5], "n_collections": row[6],
+        }
+        # Directed trade edges among the case's wallets (who sold to whom, how often).
+        cur.execute(
+            "SELECT seller, buyer, count(*) AS n, coalesce(sum(price_eth), 0) AS eth "
+            "FROM nft_trades WHERE seller = ANY(%s) AND buyer = ANY(%s) "
+            "GROUP BY seller, buyer ORDER BY n DESC",
+            (wallets, wallets),
+        )
+        edges = [{"source": s, "target": b, "count": int(n), "eth": round(float(e), 2)}
+                 for s, b, n, e in cur.fetchall()]
+        # Same NFT recirculated among these wallets = the smoking gun.
+        cur.execute(
+            "SELECT nft_contract, token_id, count(*) AS n FROM nft_trades "
+            "WHERE seller = ANY(%s) AND buyer = ANY(%s) "
+            "GROUP BY nft_contract, token_id HAVING count(*) >= 3 ORDER BY n DESC LIMIT 8",
+            (wallets, wallets),
+        )
+        tokens = [{"contract": c, "token_id": str(t), "times": int(n)}
+                  for c, t, n in cur.fetchall()]
+    return {"summary": summary, "wallets": wallets, "edges": edges,
+            "recirculated_tokens": tokens}
+
+
 @app.post("/api/reset")
 def api_reset() -> dict:
     """Wipe analyst-learned + rejected patterns; keep the 37 base cases."""
