@@ -114,6 +114,28 @@ def api_cases() -> list[dict]:
     return rows
 
 
+@app.get("/api/catch")
+def api_catch() -> dict:
+    """Daily-run detections ('today's catch'), newest first, ranked within each day
+    by how closely they resemble a confirmed case in the playbook memory."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT case_id, n_wallets, n_trades, has_high_confidence, "
+            "detected_at, nearest_confirmed, nearest_distance "
+            "FROM collusion_cases WHERE run_label LIKE 'daily-%' "
+            "ORDER BY detected_at DESC, nearest_distance ASC NULLS LAST"
+        )
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+    for r in rows:
+        r["date"] = str(r["detected_at"])[:10]
+        del r["detected_at"]
+        r["n_trades"] = int(r["n_trades"])
+        r["nearest_distance"] = (round(float(r["nearest_distance"]), 4)
+                                 if r["nearest_distance"] is not None else None)
+    return {"catches": rows}
+
+
 @app.get("/api/case/{case_id}")
 def api_case(case_id: str) -> dict:
     """Full evidence for one case: the ring graph edges, the same-NFT loops that

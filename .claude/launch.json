@@ -4,8 +4,8 @@
     {
       "name": "demo",
       "runtimeExecutable": ".venv/bin/python",
-      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--port", "8000", "--reload"],
-      "port": 8000
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--port", "8100", "--reload"],
+      "port": 8100
     }
   ]
 }

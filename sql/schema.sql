@@ -54,7 +54,12 @@ CREATE TABLE IF NOT EXISTS collusion_cases (
     total_eth           DECIMAL,
     active_days         FLOAT8,
     n_collections       INT8,
-    wallets             STRING       -- ';'-joined member addresses
+    wallets             STRING,      -- ';'-joined member addresses
+    -- daily-run ("today's catch") fields; NULL for the 2022 baseline cases
+    detected_at         TIMESTAMPTZ, -- when this ring was caught
+    run_label           STRING,      -- 'baseline-2022-01' or 'daily-YYYY-MM-DD'
+    nearest_confirmed   STRING,      -- closest confirmed case in the playbook memory
+    nearest_distance    FLOAT8       -- cosine distance to it (lower = escalate)
 );
 
 -- THE PLAYBOOK — the agent's memory. Each row is a discovered precursor-signal
