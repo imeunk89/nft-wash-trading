@@ -23,6 +23,7 @@ _PLACEHOLDERS = {
     "your_etherscan_api_key_here",
     "your_dune_api_key_here",
     "your_alchemy_api_key_here",
+    "your_cockroach_connection_string_here",
     "",
     None,
 }
@@ -48,6 +49,10 @@ def get_etherscan_key() -> str:
 
 def get_alchemy_key() -> str:
     return _require("ALCHEMY_API_KEY")
+
+
+def get_cockroach_url() -> str:
+    return _require("COCKROACH_DATABASE_URL")
 
 
 def alchemy_nft_url(endpoint: str) -> str:
