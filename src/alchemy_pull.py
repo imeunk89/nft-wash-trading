@@ -70,12 +70,16 @@ def _fee_units(fee: dict | None) -> float:
         return 0.0
 
 
-def fetch_sales(from_block: int, to_block: int, session: requests.Session) -> list[dict]:
+def fetch_sales(from_block: int, to_block: int, session: requests.Session,
+                marketplace: str | None = MARKETPLACE) -> list[dict]:
+    """Fetch sales in a block range. marketplace=None returns ALL marketplaces."""
     url = config.alchemy_nft_url("getNFTSales")
     base_params = {
         "fromBlock": from_block, "toBlock": to_block,
-        "order": "asc", "marketplace": MARKETPLACE, "limit": PAGE_LIMIT,
+        "order": "asc", "limit": PAGE_LIMIT,
     }
+    if marketplace:
+        base_params["marketplace"] = marketplace
     sales: list[dict] = []
     page_key = None
     for page in range(1, SAFETY_MAX_PAGES + 1):
@@ -122,6 +126,7 @@ def sales_to_dataframe(sales: list[dict]) -> pd.DataFrame:
             "tx_hash": s.get("transactionHash"),
             "nft_contract": (s.get("contractAddress") or "").lower(),
             "token_id": s.get("tokenId"),
+            "marketplace": s.get("marketplace") or "unknown",
         })
     return pd.DataFrame(rows)
 

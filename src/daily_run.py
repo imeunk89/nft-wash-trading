@@ -41,7 +41,7 @@ def run(date_str: str) -> None:
     print(f"=== TODAY'S CATCH · {date_str} ===")
     print(f"scanning LooksRare blocks {fb}..{tb} …")
 
-    df = sales_to_dataframe(fetch_sales(fb, tb, session))
+    df = sales_to_dataframe(fetch_sales(fb, tb, session, marketplace=None))  # all marketplaces
     print(f"  {len(df)} trades in window")
 
     high = same_token_rings(df)
@@ -79,7 +79,21 @@ def run(date_str: str) -> None:
     # Persist the catch, tagged with this run.
     label = f"daily-{date_str}"
     detected_at = f"{date_str}T12:00:00Z"
+    # Keep the intra-ring trades so the app can draw each ring's graph + tx list.
+    ring_wallets = set()
+    for r in scored:
+        ring_wallets.update(r["c"].wallets.split(";"))
+    intra = df[df["seller"].isin(ring_wallets) & df["buyer"].isin(ring_wallets)]
+
     with connect() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM nft_trades WHERE block_number BETWEEN %s AND %s", (fb, tb))
+        with cur.copy("COPY nft_trades (marketplace, nft_contract, token_id, buyer, "
+                      "seller, price_eth, block_number, tx_hash) FROM STDIN") as cp:
+            for t in intra.itertuples(index=False):
+                eth = float(t.eth) if t.eth == t.eth else None  # NaN guard
+                cp.write_row((t.marketplace, t.nft_contract, str(t.token_id), t.buyer,
+                              t.seller, eth, int(t.block), t.tx_hash))
+
         cur.execute("DELETE FROM collusion_cases WHERE run_label = %s", (label,))  # idempotent re-run
         for r in scored:
             c = r["c"]

@@ -84,6 +84,19 @@
   .sb-elev{background:rgba(255,184,77,.1);border-color:rgba(255,184,77,.35)} .sb-elev .ssc{color:var(--novel)}
   .sb-low{background:var(--panel2)} .sb-low .ssc{color:var(--suppress)}
   .sfac{color:var(--dim);font-size:12px;margin-top:4px}
+  .catch{cursor:pointer} .catch:hover{border-color:var(--accent)}
+  .chev{color:var(--dim);font-size:20px;margin-left:2px}
+  .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;
+         align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
+  .modbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:640px;
+          width:100%;padding:22px;position:relative}
+  .modx{position:absolute;top:12px;right:16px;font-size:26px;color:var(--dim);cursor:pointer;line-height:1}
+  .modx:hover{color:var(--txt)}
+  .modspin{color:var(--dim);padding:40px;text-align:center}
+  .whybox{display:flex;align-items:center;gap:14px;background:rgba(255,93,93,.06);
+          border:1px solid rgba(255,93,93,.25);border-radius:10px;padding:12px 14px;margin-bottom:6px}
+  .whyt{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--flag);margin-bottom:3px}
+  .whyf{font-size:13.5px}
 
   /* ---- memory: guided story ---- */
   .story{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px}
@@ -204,6 +217,13 @@
       </div>
     </div>
   </section>
+
+  <div id="modal" class="modal" onclick="closeModal(event)">
+    <div class="modbox">
+      <div id="modalX" class="modx" onclick="closeModal()">×</div>
+      <div id="modalBody"></div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -217,24 +237,36 @@ function showTab(w){
   sec_catch.hidden=w!=='catch'; sec_cases.hidden=w!=='cases'; sec_memory.hidden=w!=='memory';
   t0.classList.toggle('on',w==='catch'); t1.classList.toggle('on',w==='cases'); t2.classList.toggle('on',w==='memory');
 }
+let CATCH=[];
 async function loadCatch(){
-  const {catches}=await getJSON('/api/catch');
-  if(!catches.length){catchList.innerHTML='<div class="placeholder">No daily runs yet. Run <code>python -m src.daily_run --date YYYY-MM-DD</code>.</div>';return;}
-  const byDate={}; catches.forEach(c=>{(byDate[c.date]=byDate[c.date]||[]).push(c);});
-  const dates=Object.keys(byDate).sort().reverse();
-  catchList.innerHTML=dates.map((d,di)=>{
-    const rows=byDate[d].map(c=>{
-      const s=c.suspicion, hot=s.band==='high';
-      const bc=s.band==='high'?'sb-high':s.band==='elevated'?'sb-elev':'sb-low';
-      const match=c.nearest_confirmed?`resembles confirmed <b>${c.nearest_confirmed}</b> · dist ${c.nearest_distance}`:'no memory match';
-      return `<div class="catch ${hot?'hot':''}">
-        <div class="susp ${bc}"><div class="ssc">${s.score}</div><div class="ssl">suspicion</div></div>
-        <div class="cinfo"><b>${c.case_id}</b> · ${c.n_wallets} wallets · ${c.n_trades} self-trades${c.has_high_confidence?' · <span class="hcx">same-NFT loop</span>':''}
-          <div class="sfac">${s.factors.join(' · ')||'—'}</div></div>
-        <span class="match">${match}</span></div>`;}).join('');
-    return `<div class="run"><div class="runhdr">${di===0?'🔴 Latest run · ':''}${d} — <b>${byDate[d].length}</b> new suspected ring(s)</div>${rows}</div>`;
-  }).join('');
+  CATCH=(await getJSON('/api/catch')).catches;
+  if(!CATCH.length){catchList.innerHTML='<div class="placeholder">No daily runs yet. Run <code>python -m src.daily_run --date YYYY-MM-DD</code>.</div>';return;}
+  const counts={}; CATCH.forEach(c=>counts[c.date]=(counts[c.date]||0)+1);
+  let html='', cur=null, di=-1;
+  CATCH.forEach((c,i)=>{
+    if(c.date!==cur){ if(cur!==null)html+='</div>'; cur=c.date; di++;
+      html+=`<div class="run"><div class="runhdr">${di===0?'🔴 Latest run · ':''}${c.date} — <b>${counts[c.date]}</b> new suspected ring(s)</div>`; }
+    const s=c.suspicion, hot=s.band==='high', bc=s.band==='high'?'sb-high':s.band==='elevated'?'sb-elev':'sb-low';
+    const match=c.nearest_confirmed?`resembles confirmed <b>${c.nearest_confirmed}</b> · dist ${c.nearest_distance}`:'no memory match';
+    html+=`<div class="catch ${hot?'hot':''}" onclick="openCatch(${i})">
+      <div class="susp ${bc}"><div class="ssc">${s.score}</div><div class="ssl">suspicion</div></div>
+      <div class="cinfo"><b>${c.case_id}</b> · ${c.n_wallets} wallets · ${c.n_trades} self-trades${c.has_high_confidence?' · <span class="hcx">same-NFT loop</span>':''}
+        <div class="sfac">${s.factors.join(' · ')||'—'}</div></div>
+      <span class="match">${match}</span><span class="chev">›</span></div>`;
+  });
+  html+='</div>'; catchList.innerHTML=html;
 }
+async function openCatch(i){
+  const c=CATCH[i], s=c.suspicion;
+  const bc=s.band==='high'?'sb-high':s.band==='elevated'?'sb-elev':'sb-low';
+  const match=c.nearest_confirmed?`resembles confirmed <b>${c.nearest_confirmed}</b> · distance ${c.nearest_distance}`:'no memory match';
+  modalBody.innerHTML='<div class="modspin">loading evidence…</div>';
+  modal.style.display='flex';
+  const d=await getJSON('/api/case/'+c.case_id);
+  modalBody.innerHTML=`<div class="whybox"><div class="susp ${bc}"><div class="ssc">${s.score}</div><div class="ssl">suspicion</div></div>
+    <div><div class="whyt">Why this was flagged</div><div class="whyf">${s.factors.join(' · ')} · ${match}</div></div></div>`+caseDetailHTML(d);
+}
+function closeModal(e){ if(!e||e.target.id==='modal'||e.target.id==='modalX') modal.style.display='none'; }
 
 /* ================= CASES ================= */
 let CASES=[];
@@ -265,14 +297,15 @@ function graphSVG(wallets,edges){
     N+=`<text x="${p.x.toFixed(1)}" y="${(p.y+4).toFixed(1)}" fill="#e6edf3" font-size="10" text-anchor="middle" font-family="monospace">${w.slice(0,6)}</text>`;});
   return `<svg viewBox="0 0 ${W} ${H}" width="100%"><defs><marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3 L0,6 Z" fill="#ff6b6b" fill-opacity=".75"/></marker></defs>${E}${N}</svg>`;
 }
-function renderDetail(d){
+function renderDetail(d){ detail.innerHTML=caseDetailHTML(d); }
+function caseDetailHTML(d){
   const s=d.summary,t=d.recirculated_tokens,top=t[0];
   const finding=`I flagged <b>${s.n_wallets} wallets</b> that traded <b>${s.n_trades} times</b> among <i>themselves</i> over ${s.active_days} days`
     + (top?`, and it was the same few NFTs going in circles — token <b>#${top.token_id}</b> alone came back to this group <b>${top.times} times</b>. `:'. ')
     + `Since ownership never actually left the cluster, this volume is fake. ${s.has_high_confidence?'The same-NFT loop makes it near-irrefutable.':''}`;
   const toks=t.map(x=>`<tr><td>#${x.token_id}</td><td>${x.times}×</td></tr>`).join('');
   const wl=d.wallets.map(w=>`<a href="https://etherscan.io/address/${w}" target="_blank">${w}</a>`).join('');
-  detail.innerHTML=`
+  return `
     <h2>Case ${s.case_id} ${s.has_high_confidence?'<span class="badge hc">same-NFT loop ✓</span>':''}</h2>
     <div class="finding">⚠️ ${finding}</div>
     <div class="nums">
@@ -287,8 +320,8 @@ function renderDetail(d){
     ${t.length?`<div class="evi smoking"><div class="t">⚑ The smoking gun — the SAME NFT, resold over and over inside this group</div>
       <div class="lead">A real sale changes ownership. These didn't:</div><table>${toks}</table></div>`:''}
     <div class="evi"><div class="t">Member wallets — verify any of them on Etherscan</div><div class="wl">${wl}</div></div>
-    <p class="foot">* ETH volume is inflated by LooksRare's LOOKS trading-reward farming; the trade count and the
-    same-NFT loops are the real signal, not the dollar figure.</p>`;
+    <p class="foot">* ETH volume can be inflated by trading-reward farming (LooksRare LOOKS, Blur bidding);
+    the trade count and same-NFT loops are the real signal, not the dollar figure.</p>`;
 }
 
 /* ================= MEMORY: guided story ================= */
