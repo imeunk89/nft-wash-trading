@@ -17,8 +17,9 @@ uvicorn app.main:app --port 8100     # then open http://localhost:8100
 ### 1. Daily monitor — the analyst's morning worklist
 
 A scheduled run scans each day's new trades, detects fresh rings, and ranks them by how closely
-they match **cases already confirmed in memory**. Every one of the latest run's 8 rings resembles
-a confirmed case, so the analyst opens a worklist that is already triaged.
+they match **cases already confirmed in memory**. Across 15 consecutive scanned days, **all 110
+detected rings resembled a confirmed case** — so the analyst opens a worklist that is already
+triaged. Pick a range with the presets or the date fields; click a column to jump to that day.
 
 ![Daily monitor: detections-by-day chart and KPI tiles](docs/img/daily-monitor.png)
 
@@ -34,7 +35,8 @@ caught *sooner*.
 ### 3. Evidence per case — why this is not a guess
 
 Case C001: 5 wallets, 351 trades among *themselves*, and token **#689 came back to the group 114
-times**. A genuine sale moves an NFT to a new owner; these loops never do.
+times**. A genuine sale moves an NFT to a new owner; these loops never do. Press **Replay** to
+watch the ring form trade by trade in block order — the real on-chain sequence, not an animation.
 
 ![Case evidence: ring graph and the same-NFT recirculation table](docs/img/case-evidence.png)
 
@@ -46,8 +48,10 @@ Against a live CockroachDB Cloud cluster, on real 2022 LooksRare data:
 
 | | |
 |---|---|
-| Trades ingested (`nft_trades`) | **48,322** |
-| Collusion cases detected (`collusion_cases`) | **57** (37 base + 20 from daily runs) |
+| Trades ingested (`nft_trades`) | **83,901** |
+| Daily detection runs (2023-02-06 → 02-20) | **15 consecutive days** |
+| Collusion cases detected (`collusion_cases`) | **147** (37 base + 110 from daily runs) |
+| Daily-run rings that matched a confirmed case | **110 / 110** |
 | Playbook patterns in vector memory (`flagged_patterns`) | **37** |
 | Distributed vector index | `flagged_patterns_embedding_idx` — **live** |
 | Embeddings | AWS Bedrock Titan Text Embeddings V2, 1024-dim — **live** |

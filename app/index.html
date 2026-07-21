@@ -6,26 +6,34 @@
 <title>NFT Wash-Trading Memory Agent</title>
 <meta name="description" content="A market-surveillance agent that detects NFT wash-trading rings on-chain and remembers every confirmed case in CockroachDB so it catches the next one faster.">
 <meta name="color-scheme" content="dark">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
     /* --- surfaces (cool charcoal, never pure black) --- */
     --canvas:#0B0C0E; --surface:#111317; --surface-2:#171A1F; --surface-3:#1D2026;
     --line:#23262C; --line-2:#31353D;
     /* --- ink --- */
-    --ink:#E9EAEC; --ink-2:#B3B8C0; --mute:#7C828B;
+    /* Times' thin strokes read much dimmer than a sans at the same hex, so the
+       whole ink ramp is lifted. Measured on --surface #111317:
+       ink 16.1:1 · ink-2 12.4:1 · mute 7.7:1 (was 4.8:1). */
+    --ink:#F2F3F5; --ink-2:#CFD3D9; --mute:#A0A7B2;
     /* --- the only chromatic values in the system: a severity ramp --- */
-    --signal:#E05650; --signal-2:#C9902F;
-    --signal-bg:rgba(224,86,80,.10); --signal-br:rgba(224,86,80,.32);
+    /* severity ramp — lifted for legibility against Times' thin strokes:
+       signal 5.6:1, signal-2 7.3:1, both under 80% saturation */
+    --signal:#E8635C; --signal-2:#D8A03A;
+    --signal-bg:rgba(232,99,92,.10); --signal-br:rgba(232,99,92,.32);
     --signal2-bg:rgba(201,144,47,.10); --signal2-br:rgba(201,144,47,.30);
     --scrim:rgba(6,7,9,.72);
     /* --- type --- */
-    --sans:'Geist',ui-sans-serif,system-ui,-apple-system,sans-serif;
-    --mono:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
-    --fs-eyebrow:.6875rem; --fs-xs:.75rem; --fs-sm:.8125rem; --fs-base:.875rem;
-    --fs-md:.9375rem; --fs-lg:1.125rem; --fs-xl:1.375rem; --fs-2xl:1.75rem;
+    /* Times New Roman carries the voice — titles, hero numbers, the things you read
+       first. Body and data get a sans/mono so small text stays legible and 40-char
+       wallet hashes still align in columns. Liberation Serif / Tinos are the
+       metric-compatible Linux substitutes so judges on any OS see the same page. */
+    --display:'Times New Roman',Times,'Liberation Serif',Tinos,serif;
+    --sans:ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    /* scaled up ~15% from the previous ramp */
+    --fs-eyebrow:.8125rem; --fs-xs:.875rem; --fs-sm:.9375rem; --fs-base:1.0625rem;
+    --fs-md:1.125rem; --fs-lg:1.3125rem; --fs-xl:1.625rem; --fs-2xl:2.125rem;
     --ease:cubic-bezier(.16,1,.3,1);
   }
   *{box-sizing:border-box}
@@ -65,14 +73,14 @@
   /* vertical only — a `padding` shorthand here would wipe out .wrap's gutter */
   .topin{display:flex;justify-content:space-between;align-items:flex-start;
          gap:1.5rem;padding-top:1.375rem;padding-bottom:1.25rem}
-  h1{font-size:clamp(1.0625rem,1.4vw + .75rem,1.25rem);font-weight:600;
+  h1{font-family:var(--display);font-size:clamp(1.25rem,1.6vw + .8rem,1.6rem);font-weight:700;
      letter-spacing:-.018em;line-height:1.25;margin:.375rem 0 .375rem}
   .sub{color:var(--ink-2);font-size:var(--fs-sm);max-width:62ch;line-height:1.6}
   .mem{border:1px solid var(--line);background:var(--surface);border-radius:10px;
        padding:.625rem .875rem;text-align:right;flex:none}
   .mem .row{font-size:var(--fs-sm);color:var(--mute);white-space:nowrap}
   .mem .row + .row{margin-top:.1875rem}
-  .mem b{font-family:var(--mono);font-variant-numeric:tabular-nums;
+  .mem b{font-family:var(--display);font-variant-numeric:tabular-nums;
          font-weight:500;color:var(--ink);font-size:var(--fs-base)}
   .mem .row.q b{color:var(--mute)}
 
@@ -87,15 +95,49 @@
   .tab:focus-visible{outline-offset:-2px}
 
   /* ============ explainer ============ */
+  /* full container width so its right edge lines up with the board below it */
   .explainer{border:1px solid var(--line);border-left:2px solid var(--line-2);
              background:var(--surface);border-radius:0 10px 10px 0;
-             padding:1rem 1.125rem;margin-bottom:1.5rem;
-             font-size:var(--fs-sm);color:var(--ink-2);max-width:88ch}
+             padding:1.125rem 1.25rem;margin-bottom:1.5rem;
+             font-size:var(--fs-base);color:var(--ink-2);line-height:1.6}
+  .explainer > p{margin:0;max-width:92ch}      /* prose still capped for readability */
   .explainer b{color:var(--ink)}
   .explainer i{color:var(--ink-2)}
-  .pipe{font-family:var(--mono);font-size:var(--fs-xs);color:var(--mute);
-        margin-top:.75rem;line-height:1.7}
-  .pipe span{color:var(--ink-2)}
+  /* ---- pipeline infographic (replaces the old monospace arrow string) ---- */
+  .flow{display:flex;align-items:stretch;gap:0;margin-top:1.125rem}
+  .fstep{flex:1 1 0;min-width:0;position:relative;padding:.75rem .75rem .75rem .9375rem;
+         background:var(--surface-2);border:1px solid var(--line);
+         display:flex;flex-direction:column;gap:.25rem}
+  .fstep:first-child{border-radius:10px 0 0 10px}
+  .fstep:last-child{border-radius:0 10px 10px 0}
+  .fstep + .fstep{border-left:0}
+  /* chevron notch between steps */
+  .fstep + .fstep::before{content:"";position:absolute;left:-1px;top:50%;
+    width:11px;height:11px;transform:translateY(-50%) rotate(45deg);
+    background:var(--surface-2);border-top:1px solid var(--line);border-right:1px solid var(--line);
+    z-index:2}
+  .fstep.key{background:var(--signal-bg);border-color:var(--signal-br)}
+  .fstep.key + .fstep::before,.fstep.key::before{background:var(--surface-2)}
+  .fstep.key::after{content:"";position:absolute;left:0;right:0;top:-1px;height:2px;
+                    background:var(--signal)}
+  .fn{display:flex;align-items:center;gap:.375rem;font-size:var(--fs-eyebrow);
+      color:var(--mute);text-transform:uppercase;letter-spacing:.07em;white-space:nowrap}
+  .fn .ico{width:13px;height:13px}
+  .fstep.key .fn{color:var(--signal)}
+  .ft{font-family:var(--display);font-size:var(--fs-base);color:var(--ink);line-height:1.3}
+  .fbadge{align-self:flex-start;font-size:var(--fs-eyebrow);letter-spacing:.05em;
+          text-transform:uppercase;color:var(--signal);
+          border:1px solid var(--signal-br);border-radius:5px;padding:.0625rem .375rem}
+  .fw{font-size:var(--fs-xs);color:var(--ink-2);line-height:1.4}
+  .fw b{color:var(--ink);font-weight:400;font-style:italic}
+  @media (max-width:900px){
+    .flow{flex-wrap:wrap}
+    .fstep{flex:1 1 100%;border-radius:0!important;border-left:1px solid var(--line)!important}
+    .fstep:first-child{border-radius:10px 10px 0 0!important}
+    .fstep:last-child{border-radius:0 0 10px 10px!important}
+    .fstep + .fstep{border-top:0}
+    .fstep + .fstep::before{left:50%;top:-1px;transform:translateX(-50%) rotate(135deg)}
+  }
 
   /* ============ situation board ============ */
   .board{display:grid;grid-template-columns:1fr 300px;gap:.875rem;margin-bottom:1.5rem}
@@ -108,6 +150,24 @@
               font-size:var(--fs-xs);font-weight:400}
   .leg span{display:inline-flex;align-items:center;gap:.3125rem}
   .leg i{width:8px;height:8px;border-radius:2px;display:inline-block}
+  /* ---- date range controls ---- */
+  .rangebar{display:flex;align-items:center;gap:.875rem;flex-wrap:wrap;margin-bottom:.875rem}
+  .presets{display:flex;gap:.25rem;background:var(--surface-3);border:1px solid var(--line);
+           border-radius:8px;padding:2px}
+  .pbtn{background:none;border:0;border-radius:6px;padding:.3125rem .625rem;font:inherit;
+        font-size:var(--fs-xs);color:var(--mute);cursor:pointer;white-space:nowrap;
+        transition:background .18s var(--ease),color .18s var(--ease)}
+  .pbtn:hover{color:var(--ink-2)}
+  .pbtn[aria-pressed="true"]{background:var(--surface);color:var(--ink);
+                             box-shadow:inset 0 0 0 1px var(--line-2)}
+  .dates{display:flex;align-items:center;gap:.4375rem;margin-left:auto;flex-wrap:wrap}
+  .dates label{font-size:var(--fs-eyebrow);text-transform:uppercase;letter-spacing:.07em;color:var(--mute)}
+  .dates input{background:var(--surface-3);border:1px solid var(--line);border-radius:7px;
+               color:var(--ink);font:inherit;font-size:var(--fs-xs);padding:.3125rem .5rem;
+               color-scheme:dark;cursor:pointer}
+  .dates input:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+  .rangenote{font-size:var(--fs-xs);color:var(--mute);margin:.625rem 0 0;line-height:1.55}
+  .rangenote b{color:var(--ink-2);font-weight:400}
   .chartwrap{position:relative}
   #dayChart{display:block;width:100%;height:auto}
   #dayChart .hit{cursor:pointer}
@@ -121,7 +181,7 @@
         padding:.625rem 1rem;display:flex;flex-direction:column;justify-content:center;gap:.0625rem}
   .tile .k{font-size:var(--fs-eyebrow);text-transform:uppercase;letter-spacing:.07em;
            color:var(--mute);font-weight:500}
-  .tile .v{font-family:var(--mono);font-size:var(--fs-2xl);font-weight:500;line-height:1.15;
+  .tile .v{font-family:var(--display);font-size:var(--fs-2xl);font-weight:500;line-height:1.15;
            letter-spacing:-.02em;font-variant-numeric:tabular-nums}
   .tile .v small{font-size:var(--fs-base);color:var(--mute);font-weight:400}
   .tile .d{font-size:var(--fs-xs);color:var(--mute)}
@@ -159,7 +219,7 @@
   .susp{display:flex;flex-direction:column;align-items:center;justify-content:center;
         width:60px;min-height:52px;border-radius:8px;border:1px solid var(--line);
         background:var(--surface-3);padding:.25rem}
-  .ssc{font-family:var(--mono);font-size:var(--fs-xl);font-weight:500;line-height:1;
+  .ssc{font-family:var(--display);font-size:var(--fs-xl);font-weight:500;line-height:1;
        font-variant-numeric:tabular-nums;color:var(--mute)}
   .ssl{display:flex;align-items:center;gap:.1875rem;font-size:9px;text-transform:uppercase;
        letter-spacing:.06em;color:var(--mute);margin-top:.25rem;font-weight:500}
@@ -202,7 +262,7 @@
 
   .detail{background:var(--surface);border:1px solid var(--line);border-radius:12px;
           padding:1.5rem;min-height:420px}
-  .detail h2{margin:0;font-size:var(--fs-lg);font-weight:600;letter-spacing:-.015em;
+  .detail h2{font-family:var(--display);margin:0;font-size:var(--fs-xl);font-weight:700;letter-spacing:-.015em;
              display:flex;align-items:center;gap:.625rem;flex-wrap:wrap}
   .detail h2 .cid{font-family:var(--mono);font-weight:500}
   .badge{display:inline-flex;align-items:center;gap:.3125rem;font-size:var(--fs-eyebrow);
@@ -219,7 +279,7 @@
         border-radius:10px;overflow:hidden;margin:1.125rem 0}
   .nums div{padding:.875rem 1rem;border-right:1px solid var(--line);background:var(--surface)}
   .nums div:last-child{border-right:0}
-  .nums b{display:block;font-family:var(--mono);font-size:var(--fs-2xl);font-weight:500;
+  .nums b{display:block;font-family:var(--display);font-size:var(--fs-2xl);font-weight:500;
           line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
   .nums span{display:block;font-size:var(--fs-eyebrow);text-transform:uppercase;
              letter-spacing:.07em;color:var(--mute);margin-top:.25rem}
@@ -230,6 +290,22 @@
   .graph{background:var(--canvas);border:1px solid var(--line);border-radius:10px;
          padding:.5rem;margin-bottom:.5rem}
   .graph svg{display:block;width:100%;height:auto}
+  /* ---- chronological replay player ---- */
+  .player{display:flex;align-items:center;gap:.75rem;margin:.625rem 0 .5rem;flex-wrap:wrap}
+  .rpbtn{min-height:38px;padding:.375rem .75rem;font-size:var(--fs-xs);flex:none}
+  .rpbar{flex:1 1 180px;min-width:150px;-webkit-appearance:none;appearance:none;
+         height:4px;border-radius:2px;background:var(--surface-3);cursor:pointer}
+  .rpbar::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;
+         background:var(--signal);border:2px solid var(--surface);cursor:pointer}
+  .rpbar::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--signal);
+         border:2px solid var(--surface);cursor:pointer;border-width:2px}
+  .rpbar:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+  .spds{display:flex;gap:.125rem;background:var(--surface-3);border:1px solid var(--line);
+        border-radius:8px;padding:2px;flex:none}
+  .spd{padding:.25rem .4375rem;font-size:var(--fs-eyebrow)}
+  .rpout{font-size:var(--fs-xs);color:var(--mute);margin:0 0 1rem;line-height:1.65;min-height:2.6em}
+  .rpout b{color:var(--ink);font-weight:400}
+  .rpw{color:var(--ink-2)}
   .cap{color:var(--mute);font-size:var(--fs-xs);margin:0 0 1.25rem;max-width:80ch}
   .cap .trunc{color:var(--ink-2)}
   .cap .trunc b{font-family:var(--mono);font-weight:500;color:var(--ink)}
@@ -379,7 +455,21 @@
         font-size:var(--fs-xs);margin-top:.625rem}
   .spin.on{display:flex}
   .free{margin-top:1.5rem;border-top:1px solid var(--line);padding-top:1.25rem}
-  .free label{display:block;font-size:var(--fs-sm);color:var(--ink-2);margin-bottom:.5rem}
+  .freehd{font-family:var(--display);font-size:var(--fs-lg);color:var(--ink);margin-bottom:.3125rem}
+  .freewhy{font-size:var(--fs-sm);color:var(--mute);margin:0 0 .875rem;max-width:70ch;line-height:1.6}
+  .freewhy b{color:var(--ink-2);font-weight:400;font-style:italic}
+  .egs{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.875rem}
+  .eg{display:inline-flex;align-items:center;gap:.4375rem;max-width:100%;
+      background:var(--surface-3);border:1px solid var(--line);border-radius:999px;
+      padding:.4375rem .875rem;font:inherit;font-size:var(--fs-xs);color:var(--ink-2);
+      cursor:pointer;text-align:left;
+      transition:border-color .18s var(--ease),color .18s var(--ease)}
+  .eg:hover{border-color:var(--line-2);color:var(--ink)}
+  .eg .tag{font-size:var(--fs-eyebrow);text-transform:uppercase;letter-spacing:.06em;flex:none}
+  .eg.wash .tag{color:var(--signal)} .eg.ok .tag{color:var(--mute)}
+  .eg .txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:34ch}
+  .free label{display:block;font-size:var(--fs-eyebrow);text-transform:uppercase;
+              letter-spacing:.07em;color:var(--mute);margin-bottom:.375rem}
   .free textarea{width:100%;max-width:68ch;min-height:68px;background:var(--surface-3);
                  color:var(--ink);border:1px solid var(--line);border-radius:9px;
                  padding:.625rem .75rem;font:inherit;font-size:var(--fs-sm);resize:vertical;
@@ -466,6 +556,8 @@
   <symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></symbol>
   <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4Z"/></symbol>
   <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M6 3.5v17l14-8.5z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 4v16"/><path d="M15 4v16"/></symbol>
   <symbol id="i-pointer" viewBox="0 0 24 24"><path d="M12 19H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3"/><path d="m14 14 6 6"/><path d="M14 20v-6h6"/></symbol>
 </defs></svg>
 
@@ -497,24 +589,53 @@
   <!-- ===================== DAILY CATCH ===================== -->
   <section id="sec-catch" role="tabpanel" aria-labelledby="t0" tabindex="-1">
     <div class="explainer">
-      <b>Trading never stops — so neither does the agent.</b> A scheduled job (an AWS Lambda on a daily
+      <p><b>Trading never stops — so neither does the agent.</b> A scheduled job (an AWS Lambda on a daily
       timer) scans each day's <b>new</b> trades, detects fresh rings, and — the key part — ranks them by how
       closely they match <b>cases already confirmed in memory</b>. The analyst opens a worklist that's already
       triaged: <i>"this new ring is 99% identical to confirmed case C020 — start here."</i>
-      <div class="pipe">daily blocks → <span>ring detection</span> → <span>AWS Bedrock</span> embed →
-      <span>CockroachDB</span> vector-match vs confirmed memory → prioritized worklist</div>
+      </p>
+      <div class="flow" role="list" aria-label="Daily detection pipeline">
+        <div class="fstep" role="listitem">
+          <span class="fn"><svg class="ico" aria-hidden="true"><use href="#i-layers"/></svg>Step 1</span>
+          <span class="ft">Daily blocks</span>
+          <span class="fw">every trade in the last 24h</span></div>
+        <div class="fstep" role="listitem">
+          <span class="fn"><svg class="ico" aria-hidden="true"><use href="#i-repeat"/></svg>Step 2</span>
+          <span class="ft">Ring detection</span>
+          <span class="fw">closed loops in the trade graph</span></div>
+        <div class="fstep" role="listitem">
+          <span class="fn"><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg>Step 3</span>
+          <span class="ft">AWS Bedrock</span>
+          <span class="fw">embed each ring · 1024-dim</span></div>
+        <div class="fstep key" role="listitem">
+          <span class="fn"><svg class="ico" aria-hidden="true"><use href="#i-database"/></svg>Step 4</span>
+          <span class="ft">CockroachDB vector match</span><span class="fbadge">the memory</span>
+          <span class="fw">against <b>every confirmed case</b></span></div>
+        <div class="fstep" role="listitem">
+          <span class="fn"><svg class="ico" aria-hidden="true"><use href="#i-flag"/></svg>Step 5</span>
+          <span class="ft">Prioritized worklist</span>
+          <span class="fw">ranked before the analyst opens it</span></div>
+      </div>
     </div>
 
     <div class="board" id="board" hidden>
       <div class="panel">
         <div class="phead"><svg class="ico" aria-hidden="true"><use href="#i-activity"/></svg>
           Detections by day
-          <span class="leg" aria-hidden="true">
-            <span><i style="background:#E05650"></i>high</span>
+          <span class="leg" aria-hidden="true" id="chartLegend">
+            <span><i style="background:#E8635C"></i>high</span>
             <span><i style="background:#E6B347"></i>elevated</span>
             <span><i style="background:#8792A8"></i>low</span>
           </span></div>
+        <div class="rangebar">
+          <div class="presets" id="presets" role="group" aria-label="Quick date ranges"></div>
+          <div class="dates">
+            <label for="dFrom">From</label><input type="date" id="dFrom" onchange="applyRange()">
+            <label for="dTo">To</label><input type="date" id="dTo" onchange="applyRange()">
+          </div>
+        </div>
         <div class="chartwrap"><svg id="dayChart"></svg><div id="chartTip"></div></div>
+        <p class="rangenote" id="rangeNote"></p>
       </div>
       <div class="tiles" id="kpiTiles"></div>
     </div>
@@ -525,12 +646,29 @@
   <!-- ===================== CASES ===================== -->
   <section id="sec-cases" role="tabpanel" aria-labelledby="t1" tabindex="-1" hidden>
     <div class="explainer">
-      <b>What this is.</b> I pulled every LooksRare trade from 2022, built a graph of who-traded-with-whom,
+      <p><b>What this is.</b> I pulled every LooksRare trade from 2022, built a graph of who-traded-with-whom,
       and searched for <b>closed loops</b> — clusters of wallets that keep selling the same NFTs back to each
       other. A genuine sale moves an NFT to a <i>new</i> owner; these loops never do. That's <b>wash trading</b>:
       manufacturing fake volume to lure real buyers. Each case below is one ring I found — click one.
-      <div class="pipe"><span>Alchemy</span> trade data → <span>ring detection</span> (graph cycles) →
-      <span>CockroachDB</span> cases + vector memory → <span>AWS Bedrock</span> embeddings</div>
+      </p>
+      <div class="flow" role="list" aria-label="Case detection pipeline">
+        <div class="fstep" role="listitem">
+          <span class="fn"><svg class="ico" aria-hidden="true"><use href="#i-layers"/></svg>Step 1</span>
+          <span class="ft">Alchemy trade data</span>
+          <span class="fw">every LooksRare trade, 2022</span></div>
+        <div class="fstep" role="listitem">
+          <span class="fn"><svg class="ico" aria-hidden="true"><use href="#i-repeat"/></svg>Step 2</span>
+          <span class="ft">Ring detection</span>
+          <span class="fw">graph cycles — who sold to whom</span></div>
+        <div class="fstep key" role="listitem">
+          <span class="fn"><svg class="ico" aria-hidden="true"><use href="#i-flag"/></svg>Step 3</span>
+          <span class="ft">Same-NFT loop</span><span class="fbadge">the proof</span>
+          <span class="fw">a token that <b>came back</b> to the group</span></div>
+        <div class="fstep" role="listitem">
+          <span class="fn"><svg class="ico" aria-hidden="true"><use href="#i-database"/></svg>Step 4</span>
+          <span class="ft">CockroachDB</span>
+          <span class="fw">cases + vector memory</span></div>
+      </div>
     </div>
     <div class="cases">
       <div class="caselist" id="caselist"></div>
@@ -544,11 +682,11 @@
   <!-- ===================== MEMORY ===================== -->
   <section id="sec-memory" role="tabpanel" aria-labelledby="t2" tabindex="-1" hidden>
     <div class="explainer">
-      <b>Why a memory?</b> Real surveillance teams ask, after every incident, <i>"what should we have caught
+      <p><b>Why a memory?</b> Real surveillance teams ask, after every incident, <i>"what should we have caught
       sooner?"</i> This agent turns each confirmed case into a searchable memory in CockroachDB. New activity is
       compared against that memory by meaning (AWS Bedrock embeddings + vector search), so the agent gets
       <b>sharper with every verdict</b>. The 3-minute story below shows it happening — just press
-      <b>Next</b> and read.
+      <b>Next</b> and read.</p>
     </div>
 
     <div class="story">
@@ -579,7 +717,13 @@
       </div>
 
       <div class="free">
-        <label for="freeAct">Advanced: try your own description</label>
+        <div class="freehd">Try it yourself</div>
+        <p class="freewhy">Describe some trading activity in <b>plain English</b> — no addresses, no code.
+          The agent embeds your sentence and searches its memory for the closest case it has already
+          seen, exactly as it does for real detections above. Click an example to load it, edit it,
+          then press <b>Triage this</b>.</p>
+        <div class="egs" id="egs"></div>
+        <label for="freeAct">Activity to check</label>
         <textarea id="freeAct" placeholder="e.g. five wallets kept re-selling the same token to each other for weeks…"></textarea>
         <div class="storybtns"><button class="btn ghost" onclick="freeTriage()">Triage this <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
       </div>
@@ -691,10 +835,18 @@ function showTab(w){
    dE 16.4, normal dE 21.8, contrast >=3:1 on --surface). Identity never rides on
    color alone: fixed stack order (high at baseline), 2px surface gaps, direct
    labels, text legend. */
-const CHART_C = {high:'#E05650', elevated:'#E6B347', low:'#8792A8'};
+const CHART_C = {high:'#E8635C', elevated:'#E6B347', low:'#8792A8'};
 const BAND_ORDER = ['high','elevated','low'];
 let BOARD = null;
 
+const DAY = 864e5;
+const iso = d => new Date(d).toISOString().slice(0,10);
+/* Continuous axis: a day with no detections is information, so show the gap. */
+function dayList(from, to){
+  const out = []; let t = Date.parse(from + 'T00:00:00Z'), end = Date.parse(to + 'T00:00:00Z');
+  while(t <= end && out.length < 200){ out.push(iso(t)); t += DAY; }
+  return out;
+}
 function buildBoard(rows){
   if(!rows.length) return;
   const byDate = {};
@@ -704,54 +856,94 @@ function buildBoard(rows){
     g.wallets += c.n_wallets; g.trades += c.n_trades;
     if(c.nearest_confirmed) g.matched++;
   });
-  const dates = Object.keys(byDate).sort();
-  BOARD = {dates, byDate};
-  const latest = dates[dates.length-1], L = byDate[latest];
+  const seen = Object.keys(byDate).sort();
+  BOARD = {byDate, min:seen[0], max:seen[seen.length-1], seen};
+  const span = Math.round((Date.parse(BOARD.max) - Date.parse(BOARD.min)) / DAY) + 1;
+  document.getElementById('presets').innerHTML =
+    [['7d',7],['14d',14],['30d',30],['All',span]]
+      .filter(([,n],i) => i === 3 || n < span)
+      .map(([lbl,n]) => `<button class="pbtn" data-n="${n}" onclick="setPreset(${n},this)"
+        aria-pressed="false">${lbl}</button>`).join('');
+  setPreset(span, document.querySelector('#presets .pbtn:last-child'));
+  board.hidden = false;
+}
+function setPreset(n, btn){
+  document.querySelectorAll('#presets .pbtn').forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
+  const to = BOARD.max, from = iso(Math.max(Date.parse(BOARD.min), Date.parse(to) - (n-1)*DAY));
+  dFrom.value = from; dTo.value = to;
+  dFrom.min = dTo.min = BOARD.min; dFrom.max = dTo.max = BOARD.max;
+  renderRange(from, to);
+}
+function applyRange(){
+  document.querySelectorAll('#presets .pbtn').forEach(b => b.setAttribute('aria-pressed','false'));
+  let from = dFrom.value || BOARD.min, to = dTo.value || BOARD.max;
+  if(Date.parse(from) > Date.parse(to)) [from, to] = [to, from];   // tolerate reversed input
+  dFrom.value = from; dTo.value = to;
+  renderRange(from, to);
+}
+function renderRange(from, to){
+  const dates = dayList(from, to), B = BOARD.byDate;
+  const sum = k => dates.reduce((a,d) => a + (B[d]?.[k] || 0), 0);
+  const total = sum('total'), matched = sum('matched'), active = dates.filter(d => B[d]).length;
+  const label = from === to ? from : `${from} → ${to}`;
   document.getElementById('kpiTiles').innerHTML = `
-    <div class="tile hot"><span class="k">New rings · ${latest}</span>
-      <span class="v">${L.total}</span><span class="d">${L.high} at high suspicion</span></div>
+    <div class="tile hot"><span class="k">Suspected rings</span>
+      <span class="v">${total}</span><span class="d">${sum('high')} at high suspicion · ${label}</span></div>
     <div class="tile"><span class="k">Matched to memory</span>
-      <span class="v">${L.matched}<small>/${L.total}</small></span>
+      <span class="v">${matched}<small>/${total}</small></span>
       <span class="d">resemble a confirmed case</span></div>
     <div class="tile"><span class="k">Wallets implicated</span>
-      <span class="v">${L.wallets}</span><span class="d">in the latest run</span></div>
+      <span class="v">${sum('wallets').toLocaleString()}</span>
+      <span class="d">across ${active} day(s) with detections</span></div>
     <div class="tile"><span class="k">Self-trades flagged</span>
-      <span class="v">${L.trades.toLocaleString()}</span>
+      <span class="v">${sum('trades').toLocaleString()}</span>
       <span class="d">circular sales — never a new owner</span></div>`;
-  drawDayChart(dates, byDate);
-  board.hidden = false;
+  document.getElementById('rangeNote').innerHTML =
+    `Showing <b>${dates.length}</b> day(s) · <b>${active}</b> with detections, <b>${dates.length-active}</b> clear.
+     Scanned range available: <b>${BOARD.min}</b> to <b>${BOARD.max}</b>. Click a column to jump to that day's rings.`;
+  drawDayChart(dates, B);
 }
 
 function drawDayChart(dates, byDate){
   const W = 640, H = 252, mL = 30, mR = 8, mT = 22, mB = 30;
   const pw = W - mL - mR, ph = H - mT - mB;
-  const yMax = Math.max(2, Math.ceil(Math.max(...dates.map(d => byDate[d].total)) / 2) * 2);
+  const peak = Math.max(...dates.map(d => byDate[d]?.total || 0), 0);
+  const yMax = Math.max(2, Math.ceil(peak / 2) * 2);
   const y = v => mT + ph - (v / yMax) * ph;
-  const slot = pw / dates.length, bw = Math.min(46, slot * .5);
+  const slot = pw / dates.length, bw = Math.max(3, Math.min(46, slot * .58));
+  /* thin x labels so they never collide */
+  const every = Math.ceil(dates.length / 12), lastI = dates.length - 1;
   const topRect = (x, yy, w, h, r) => h <= 0 ? '' :
     `M${x},${yy+h}V${yy+r}Q${x},${yy} ${x+r},${yy}H${x+w-r}Q${x+w},${yy} ${x+w},${yy+r}V${yy+h}Z`;
   let s = '';
   /* recessive grid + y labels */
   for(let v = 0; v <= yMax; v += yMax / 2){
     s += `<line x1="${mL}" x2="${W-mR}" y1="${y(v)}" y2="${y(v)}" stroke="#23262C" stroke-width="1"/>`;
-    s += `<text x="${mL-8}" y="${y(v)+3.5}" fill="#7C828B" font-size="10" text-anchor="end" font-family="Geist Mono, ui-monospace, monospace">${v}</text>`;
+    s += `<text x="${mL-8}" y="${y(v)+3.5}" fill="#A0A7B2" font-size="14" text-anchor="end" font-family="'Times New Roman', Times, serif">${v}</text>`;
   }
   dates.forEach((d, i) => {
-    const g = byDate[d], cx = mL + slot * i + slot / 2, x = cx - bw / 2, last = i === dates.length - 1;
-    let acc = 0, seg = '';
-    const bands = BAND_ORDER.filter(b => g[b] > 0);
-    bands.forEach((b, bi) => {
-      const h0 = (g[b] / yMax) * ph, gap = bi > 0 ? 2 : 0;
-      const yTop = y(acc + g[b]), hh = Math.max(1, h0 - gap);
-      seg += bi === bands.length - 1
-        ? `<path d="${topRect(x, yTop, bw, hh, 4)}" fill="${CHART_C[b]}"/>`
-        : `<rect x="${x}" y="${yTop}" width="${bw}" height="${hh}" fill="${CHART_C[b]}"/>`;
-      acc += g[b];
-    });
+    const g = byDate[d], cx = mL + slot * i + slot / 2, x = cx - bw / 2, last = i === lastI;
+    const showLbl = (i % every === 0) || last;
+    let seg = '';
+    if(!g){
+      /* scanned that day, found nothing — a flat tick, not a missing column */
+      seg = `<rect x="${x}" y="${y(0)-1.5}" width="${bw}" height="1.5" fill="#31353D"/>`;
+    } else {
+      let acc = 0;
+      const bands = BAND_ORDER.filter(b => g[b] > 0);
+      bands.forEach((b, bi) => {
+        const h0 = (g[b] / yMax) * ph, gap = bi > 0 ? 2 : 0;
+        const yTop = y(acc + g[b]), hh = Math.max(1, h0 - gap);
+        seg += bi === bands.length - 1
+          ? `<path d="${topRect(x, yTop, bw, hh, Math.min(4, bw/2))}" fill="${CHART_C[b]}"/>`
+          : `<rect x="${x}" y="${yTop}" width="${bw}" height="${hh}" fill="${CHART_C[b]}"/>`;
+        acc += g[b];
+      });
+    }
     s += `<g data-g="${d}">${seg}
-      <text x="${cx}" y="${y(g.total)-7}" fill="#E9EAEC" font-size="12" text-anchor="middle" font-family="Geist Mono, ui-monospace, monospace">${g.total}</text>
-      <text x="${cx}" y="${H-9}" fill="${last?'#E9EAEC':'#7C828B'}" font-size="10" text-anchor="middle" font-family="Geist Mono, ui-monospace, monospace">${d.slice(5)}</text>
-      ${last?`<circle cx="${cx-22}" cy="${H-12.5}" r="2.5" fill="#E05650" class="cpulse"/>`:''}</g>`;
+      ${g && (dates.length <= 18 || last) ? `<text x="${cx}" y="${y(g.total)-7}" fill="#F2F3F5" font-size="14" text-anchor="middle" font-family="'Times New Roman', Times, serif">${g.total}</text>` : ''}
+      ${showLbl ? `<text x="${cx}" y="${H-9}" fill="${last?'#F2F3F5':'#A0A7B2'}" font-size="14" text-anchor="middle" font-family="'Times New Roman', Times, serif">${d.slice(5)}</text>` : ''}
+      ${last?`<circle cx="${cx-22}" cy="${H-12.5}" r="2.5" fill="#E8635C" class="cpulse"/>`:''}</g>`;
   });
   /* hover hits on top */
   dates.forEach((d, i) => {
@@ -768,9 +960,11 @@ function drawDayChart(dates, byDate){
     const hit = e.target.closest('.hit');
     if(!hit){ tip.style.display = 'none'; dim(null); return; }
     const d = hit.dataset.date, g = byDate[d];
-    tip.innerHTML = `<b>${d}</b> · <b>${g.total}</b> suspected ring(s)<br>` +
-      `high <b>${g.high}</b> · elevated <b>${g.elevated}</b> · low <b>${g.low}</b><br>` +
-      `<b>${g.wallets}</b> wallets · <b>${g.matched}/${g.total}</b> matched memory`;
+    tip.innerHTML = g
+      ? `<b>${d}</b> · <b>${g.total}</b> suspected ring(s)<br>` +
+        `high <b>${g.high}</b> · elevated <b>${g.elevated}</b> · low <b>${g.low}</b><br>` +
+        `<b>${g.wallets}</b> wallets · <b>${g.matched}/${g.total}</b> matched memory`
+      : `<b>${d}</b><br>scanned · no rings detected`;
     tip.style.display = 'block';
     const r = wrap.getBoundingClientRect();
     const tx = Math.min(e.clientX - r.left + 14, r.width - tip.offsetWidth - 4);
@@ -889,40 +1083,131 @@ async function pickCase(i){
    renderer, so draw the CORE of the ring — the heaviest traders and trade paths — and
    state plainly what was left out. Never truncate silently. */
 const G_MAX_NODES=36, G_MAX_EDGES=120;
-function graphSVG(wallets,edges){
+
+/* Node placement, shared by the static graph and the replay so a wallet never
+   moves between the two views. */
+function ringLayout(wallets,edges){
   const deg={};
   edges.forEach(e=>{deg[e.source]=(deg[e.source]||0)+e.count;deg[e.target]=(deg[e.target]||0)+e.count;});
   const keep=[...wallets].sort((a,b)=>(deg[b]||0)-(deg[a]||0)).slice(0,G_MAX_NODES);
-  const inKeep=new Set(keep);
-  const shown=edges.filter(e=>inKeep.has(e.source)&&inKeep.has(e.target)&&e.source!==e.target)
-                   .sort((a,b)=>b.count-a.count);
-  const drawn=shown.slice(0,G_MAX_EDGES);
   const n=keep.length, W=560, H=n<=4?300:n<=8?380:440, cx=W/2, cy=H/2, R=Math.min(W,H)/2-46;
   const nr=Math.max(9,Math.min(26,Math.floor(Math.PI*R/n)-3));
-  const chars=nr>=18?6:nr>=13?5:4, fs=nr>=18?10:nr>=13?9:7.5;
   const idx={}; keep.forEach((w,i)=>idx[w]=i);
   const pos=keep.map((w,i)=>{const a=-Math.PI/2+i*2*Math.PI/n;return{x:cx+R*Math.cos(a),y:cy+R*Math.sin(a)};});
+  return {keep,inKeep:new Set(keep),idx,pos,n,W,H,nr,
+          chars:nr>=18?6:nr>=13?5:4, fs:nr>=18?12:nr>=13?10.5:9};
+}
+function arcPath(L,i,j){
+  const a=L.pos[i],b=L.pos[j],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1,ux=dx/d,uy=dy/d;
+  const sx=a.x+ux*L.nr,sy=a.y+uy*L.nr,ex=b.x-ux*L.nr,ey=b.y-uy*L.nr,off=Math.min(28,d*.14);
+  const mx=(sx+ex)/2-uy*off,my=(sy+ey)/2+ux*off;
+  return {d:`M${sx.toFixed(1)},${sy.toFixed(1)} Q${mx.toFixed(1)},${my.toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}`,mx,my};
+}
+function nodesSVG(L,hot){
+  return L.keep.map((w,i)=>{const p=L.pos[i],on=hot&&hot.has(w);
+    return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${L.nr}"
+      fill="${on?'#3A2422':'#1D2026'}" stroke="${on?'#E8635C':'#31353D'}" stroke-width="${on?2.5:1.5}"/>
+      <text x="${p.x.toFixed(1)}" y="${(p.y+L.fs*.35).toFixed(1)}" fill="${on?'#F2F3F5':'#CFD3D9'}"
+        font-size="${L.fs}" text-anchor="middle" font-family="'Times New Roman', Times, serif">${w.slice(2,2+L.chars)}</text>`;
+  }).join('');
+}
+const ARW=`<defs><marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3 L0,6 Z" fill="#E8635C" fill-opacity=".8"/></marker>
+<marker id="arwHot" markerWidth="11" markerHeight="11" refX="7" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L8,3.5 L0,7 Z" fill="#FF8A80"/></marker></defs>`;
+
+function graphSVG(wallets,edges){
+  const L=ringLayout(wallets,edges);
+  const shown=edges.filter(e=>L.inKeep.has(e.source)&&L.inKeep.has(e.target)&&e.source!==e.target)
+                   .sort((a,b)=>b.count-a.count);
+  const drawn=shown.slice(0,G_MAX_EDGES);
   const maxC=Math.max(...drawn.map(e=>e.count),1), labelEdges=drawn.length<=40;
   let E='';
-  drawn.forEach(e=>{const i=idx[e.source],j=idx[e.target];if(i==null||j==null||i===j)return;
-    const a=pos[i],b=pos[j],dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;
-    const sx=a.x+ux*nr,sy=a.y+uy*nr,ex=b.x-ux*nr,ey=b.y-uy*nr,off=Math.min(28,L*.14),
-          mx=(sx+ex)/2-uy*off,my=(sy+ey)/2+ux*off;
-    E+=`<path d="M${sx.toFixed(1)},${sy.toFixed(1)} Q${mx.toFixed(1)},${my.toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}" fill="none" stroke="#E05650" stroke-opacity="${labelEdges?.55:.3}" stroke-width="${(1+3.5*e.count/maxC).toFixed(1)}" marker-end="url(#arw)"/>`;
-    if(labelEdges)E+=`<text x="${mx.toFixed(1)}" y="${my.toFixed(1)}" fill="#E8938F" font-size="11" text-anchor="middle" font-family="Geist Mono, ui-monospace, monospace">${e.count}</text>`;});
-  let N='';keep.forEach((w,i)=>{const p=pos[i];
-    N+=`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${nr}" fill="#1D2026" stroke="#31353D" stroke-width="1.5"/>`;
-    N+=`<text x="${p.x.toFixed(1)}" y="${(p.y+fs*.35).toFixed(1)}" fill="#B3B8C0" font-size="${fs}" text-anchor="middle" font-family="Geist Mono, ui-monospace, monospace">${w.slice(2,2+chars)}</text>`;});
+  drawn.forEach(e=>{const i=L.idx[e.source],j=L.idx[e.target];if(i==null||j==null||i===j)return;
+    const a=arcPath(L,i,j);
+    E+=`<path d="${a.d}" fill="none" stroke="#E8635C" stroke-opacity="${labelEdges?.55:.3}" stroke-width="${(1+3.5*e.count/maxC).toFixed(1)}" marker-end="url(#arw)"/>`;
+    if(labelEdges)E+=`<text x="${a.mx.toFixed(1)}" y="${a.my.toFixed(1)}" fill="#F5B8B4" font-size="13" text-anchor="middle" font-family="'Times New Roman', Times, serif">${e.count}</text>`;});
   const cut=[];
-  if(wallets.length>n)cut.push(`showing the <b>${n}</b> busiest of <b>${wallets.length}</b> wallets`);
+  if(wallets.length>L.n)cut.push(`showing the <b>${L.n}</b> busiest of <b>${wallets.length}</b> wallets`);
   if(shown.length>drawn.length)cut.push(`the <b>${drawn.length}</b> heaviest of <b>${shown.length}</b> trade paths between them`);
   return {
-    svg:`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Ring graph: ${n} wallets shown of ${wallets.length}, with the trades circulating between them"><defs><marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3 L0,6 Z" fill="#E05650" fill-opacity=".8"/></marker></defs>${E}${N}</svg>`,
+    svg:`<svg id="ringSVG" viewBox="0 0 ${L.W} ${L.H}" width="${L.W}" height="${L.H}" role="img" aria-label="Ring graph: ${L.n} wallets shown of ${wallets.length}, with the trades circulating between them">${ARW}${E}${nodesSVG(L)}</svg>`,
     note:cut.length?`This ring is too large to draw in full — ${cut.join(', and ')}.`:''
   };
 }
+
+/* ---------- chronological replay ---------- */
+/* Ordered by block_number, which is the real on-chain sequence. */
+let RP={seq:[],L:null,i:0,timer:null,total:0};
+function replayFrame(){
+  const {seq,L,i}=RP, svg=document.getElementById('ringSVG');
+  if(!svg||!L) return;
+  let E='';
+  for(let k=0;k<=i && k<seq.length;k++){
+    const t=seq[k], a=L.idx[t.source], b=L.idx[t.target];
+    if(a==null||b==null||a===b) continue;
+    const p=arcPath(L,a,b), cur=(k===i);
+    E+=`<path d="${p.d}" fill="none" stroke="${cur?'#FF8A80':'#E8635C'}"
+      stroke-opacity="${cur?1:.16+.24*(k/Math.max(1,i))}" stroke-width="${cur?3.5:1.5}"
+      marker-end="url(#${cur?'arwHot':'arw'})"/>`;
+  }
+  const t=seq[i], hot=t?new Set([t.source,t.target]):null;
+  svg.innerHTML=ARW+E+nodesSVG(L,hot);
+  const bar=document.getElementById('rpBar'); if(bar) bar.value=i;
+  const out=document.getElementById('rpOut');
+  if(out&&t) out.innerHTML=`trade <b>${i+1}</b>/<b>${seq.length}</b> · block <b>${t.block.toLocaleString()}</b>
+    · token <b>#${t.token_id}</b> · <b>${t.eth}</b> ETH<br>
+    <span class="rpw">${t.source.slice(0,10)}…</span> sold to <span class="rpw">${t.target.slice(0,10)}…</span>`;
+}
+/* Base tick. A 120-trade ring at the old 260ms took half a minute; 80ms plays it
+   in ~10s, and the speed control goes faster still. */
+const RP_TICK = 80;
+let rpSpeed = 2;                              // default 2x -> 40ms/trade
+function rpSetSpeed(x, btn){
+  rpSpeed = x;
+  document.querySelectorAll('.spd').forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
+  if(RP.timer){ rpPause(); rpPlay(); }        // restart the timer at the new rate
+}
+function rpSeek(v){ rpPause(); RP.i=Math.max(0,Math.min(RP.seq.length-1,+v)); replayFrame(); }
+function rpPause(){ if(RP.timer){clearInterval(RP.timer);RP.timer=null;} const b=document.getElementById('rpPlay');
+  if(b) b.innerHTML=ic('play')+'Replay'; }
+function rpPlay(){
+  if(RP.timer){ rpPause(); return; }
+  if(!RP.seq.length) return;
+  if(RP.i>=RP.seq.length-1) RP.i=0;
+  const b=document.getElementById('rpPlay'); if(b) b.innerHTML=ic('pause')+'Pause';
+  replayFrame();
+  const ms = Math.max(16, (REDUCED?400:RP_TICK) / rpSpeed);
+  RP.timer=setInterval(()=>{
+    if(RP.i>=RP.seq.length-1){ rpPause(); return; }
+    RP.i++; replayFrame();
+  }, ms);
+}
+function rpStart(d){
+  rpPause();
+  RP={seq:d.sequence||[], L:ringLayout(d.wallets,d.edges), i:0, timer:null,
+      total:d.sequence_total||0};
+  const svg=document.getElementById('ringSVG');
+  if(svg&&RP.seq.length){ svg.setAttribute('aria-label',
+    `Chronological replay of ${RP.seq.length} trades in this ring`); replayFrame(); }
+}
+function renderStaticRing(d){
+  const svg=document.getElementById('ringSVG'); if(!svg||!d) return;
+  const tmp=document.createElement('div'); tmp.innerHTML=graphSVG(d.wallets,d.edges).svg;
+  svg.innerHTML=tmp.firstElementChild.innerHTML;
+  svg.setAttribute('aria-label', tmp.firstElementChild.getAttribute('aria-label'));
+  RP.i=0; const bar=document.getElementById('rpBar'); if(bar) bar.value=0;
+  const out=document.getElementById('rpOut');
+  if(out) out.innerHTML=`Showing the whole ring at once. Press <b>Replay</b> to watch it form trade by trade.`;
+}
+function rpExit(d){ rpPause(); renderStaticRing(d); }
+let CURCASE=null;
 function renderDetail(d){ detail.innerHTML=caseDetailHTML(d); }
 function caseDetailHTML(d){
+  rpPause(); CURCASE=d;                      /* player state follows the visible case */
+  const L0=ringLayout(d.wallets,d.edges);
+  /* Safety net: never count a trade the graph can't draw, or the player advances
+     while nothing appears. The API already restricts to these wallets. */
+  d.sequence=(d.sequence||[]).filter(t=>L0.inKeep.has(t.source)&&L0.inKeep.has(t.target)&&t.source!==t.target);
+  RP={seq:d.sequence, L:L0, i:0, timer:null, total:d.sequence_total||0};
   const s=d.summary,t=d.recirculated_tokens,top=t[0];
   const subDay=s.active_days<1;             /* same-day rings otherwise read "over 0 days" */
   const daysTile=subDay?'&lt;1':s.active_days;
@@ -948,6 +1233,20 @@ function caseDetailHTML(d){
     </div>
     <div class="legend"><span><b>●</b> wallet</span><span><b>→</b> sold to</span><span><b>7</b> = number of times</span></div>
     <div class="graph">${g.svg}</div>
+    ${d.sequence&&d.sequence.length?`
+    <div class="player">
+      <button class="btn ghost rpbtn" id="rpPlay" onclick="rpPlay()">${ic('play')}Replay</button>
+      <input id="rpBar" class="rpbar" type="range" min="0" max="${d.sequence.length-1}" value="0"
+             aria-label="Trade sequence position" oninput="rpSeek(this.value)">
+      <div class="spds" role="group" aria-label="Replay speed">
+        ${[1,2,4,8].map(x=>`<button class="spd pbtn" onclick="rpSetSpeed(${x},this)"
+          aria-pressed="${x===2}">${x}&times;</button>`).join('')}
+      </div>
+      <button class="btn ghost rpbtn" onclick="rpExit(CURCASE)" aria-label="Back to the whole-ring view">${ic('undo')}Whole ring</button>
+    </div>
+    <p class="rpout" id="rpOut">Press <b>Replay</b> to watch the ring form trade by trade, in block order —
+      you can see which wallet moves first and how the NFT comes back.${
+      d.sequence.length<d.sequence_total?` Showing the first <b>${d.sequence.length}</b> of <b>${d.sequence_total}</b> trades between the <b>${d.sequence_wallets}</b> wallets drawn above.`:''}</p>`:''}
     <p class="cap">Follow the arrows: the NFTs circle back among the same wallets instead of reaching new owners.${g.note?` <span class="trunc">${g.note}</span>`:''}</p>
     ${t.length?`<div class="evi smoking"><div class="t">${ic('flag')}The smoking gun — the SAME NFT, resold over and over inside this group</div>
       <div class="lead">A real sale changes ownership. These didn't:</div><table>${toks}</table></div>`:''}
@@ -1072,6 +1371,20 @@ async function restartStory(){
   activityShow.textContent="—"; result.style.display='none'; after.style.display='none';
   nextBtn.innerHTML=`Next ${ic('arrow')}`;
 }
+/* Concrete starting points — the box is useless if you don't know what it eats. */
+const EGS=[
+  {k:'wash',tag:'Likely wash',t:"Three wallets created the same week traded one NFT around a closed loop over sixty times, always at the same price."},
+  {k:'wash',tag:'Likely wash',t:"A wallet sold an NFT to a second wallet it had funded an hour earlier, then bought it straight back the next block."},
+  {k:'ok',tag:'Likely benign',t:"A collector steadily bought forty NFTs from thirty different sellers across three months at market prices."},
+  {k:'ok',tag:'Likely benign',t:"A gaming project airdropped items to two thousand distinct wallets that had never traded with each other."},
+];
+function renderEgs(){
+  egs.innerHTML=EGS.map((e,i)=>`<button class="eg ${e.k}" onclick="useEg(${i})"
+    aria-label="Load example: ${esc(e.t)}"><span class="tag">${e.tag}</span>
+    <span class="txt">${esc(e.t)}</span></button>`).join('');
+}
+function useEg(i){ freeAct.value=EGS[i].t; freeAct.focus(); }
+
 async function freeTriage(){
   const activity=freeAct.value.trim(); if(!activity)return;
   spin.classList.add('on'); result.style.display='none'; after.style.display='none';
@@ -1085,7 +1398,7 @@ async function freeTriage(){
   }finally{spin.classList.remove('on');}
 }
 
-refresh(); loadCatch(); loadCases(); restartStory();
+renderEgs(); refresh(); loadCatch(); loadCases(); restartStory();
 </script>
 </body>
 </html>

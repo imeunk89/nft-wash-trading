@@ -26,6 +26,10 @@ HERE = Path(__file__).parent
 # them without touching the 37 base collusion cases (source_case 'C0..').
 LEARNED_CASE = "LEARNED"
 
+# Must match G_MAX_NODES in app/index.html — the replay sequence is limited to the
+# wallets the ring graph actually draws.
+GRAPH_MAX_NODES = 36
+
 
 class Activity(BaseModel):
     activity: str
@@ -178,8 +182,39 @@ def api_case(case_id: str) -> dict:
         )
         tokens = [{"contract": c, "token_id": str(t), "times": int(n)}
                   for c, t, n in cur.fetchall()]
+        # Chronological trade sequence so the UI can replay how the ring formed.
+        # nft_trades has no timestamp column, but block_number is a strict
+        # chronological ordering on-chain, so it *is* the sequence.
+        #
+        # Restrict it to the same wallets the UI actually draws (the busiest
+        # GRAPH_MAX_NODES, ranked by trade count exactly as app/index.html does).
+        # Otherwise most of the sequence references wallets that aren't on screen
+        # and the replay counts up while nothing appears.
+        deg: dict[str, int] = {}
+        for e in edges:
+            deg[e["source"]] = deg.get(e["source"], 0) + e["count"]
+            deg[e["target"]] = deg.get(e["target"], 0) + e["count"]
+        drawn = sorted(wallets, key=lambda w: -deg.get(w, 0))[:GRAPH_MAX_NODES]
+        cur.execute(
+            "SELECT seller, buyer, token_id, block_number, price_eth FROM nft_trades "
+            "WHERE seller = ANY(%s) AND buyer = ANY(%s) AND seller <> buyer "
+            "ORDER BY block_number ASC LIMIT 150",
+            (drawn, drawn),
+        )
+        sequence = [{"source": s, "target": b, "token_id": str(t),
+                     "block": int(bn), "eth": round(float(p or 0), 3)}
+                    for s, b, t, bn, p in cur.fetchall()]
+        # How many trades exist among those same drawn wallets — the honest
+        # denominator for "showing the first N of M".
+        cur.execute(
+            "SELECT count(*) FROM nft_trades WHERE seller = ANY(%s) AND buyer = ANY(%s) "
+            "AND seller <> buyer",
+            (drawn, drawn),
+        )
+        sequence_total = int(cur.fetchone()[0])
     return {"summary": summary, "wallets": wallets, "edges": edges,
-            "recirculated_tokens": tokens}
+            "recirculated_tokens": tokens, "sequence": sequence,
+            "sequence_total": sequence_total, "sequence_wallets": len(drawn)}
 
 
 @app.post("/api/reset")
