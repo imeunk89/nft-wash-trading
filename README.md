@@ -74,7 +74,12 @@ Against a live CockroachDB Cloud cluster, on real 2022 LooksRare data:
   `flagged_patterns`; every triage is a similarity search against it. See [`sql/schema.sql`](sql/schema.sql).
 - **Durable agent memory** — **live.** `confirm()` / `reject()` verdicts are rows, not session
   state, so the improvement survives restarts and is shared by every agent instance.
-- **Managed MCP Server** — _(planned)_ read-only agent access to the cluster + audit logging.
+- **Cloud Managed MCP Server** — **live.** The "Ask the memory" panel answers analyst questions in
+  plain English: the agent reads the schema and runs a read-only `select_query` over the managed MCP
+  endpoint, then shows the SQL it generated. It never opens its own SQL connection for this path and
+  holds no write credentials — [`src/crdb_mcp.py`](src/crdb_mcp.py) refuses any tool outside a
+  read-only allowlist, because a Cluster Admin key *can* otherwise call `insert_rows`.
+  Accuracy is checked against hand-written truth queries: `python -m src.eval_ask` (8/8).
 - **ccloud CLI** — _(stretch)_ cluster provisioning/backup shown in the demo.
 
 ## AWS services used
