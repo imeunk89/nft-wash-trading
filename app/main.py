@@ -14,7 +14,8 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-from src import bedrock
+from src import ask_memory, bedrock, crdb_mcp, playbook
+from src.build_playbook import case_to_signal
 from src.db import connect
 from src.feedback_loop import confirm, reject, triage
 from src.suspicion import suspicion_score
@@ -25,6 +26,7 @@ HERE = Path(__file__).parent
 # Analyst-confirmed learnings + rejects carry these markers so /reset can wipe
 # them without touching the 37 base collusion cases (source_case 'C0..').
 LEARNED_CASE = "LEARNED"
+BASELINE_RUN = "baseline-2022-01"   # the 37 patterns a reset restores to
 
 # Must match G_MAX_NODES in app/index.html — the replay sequence is limited to the
 # wallets the ring graph actually draws.
@@ -212,9 +214,193 @@ def api_case(case_id: str) -> dict:
             (drawn, drawn),
         )
         sequence_total = int(cur.fetchone()[0])
+        # Has an analyst already ruled on this ring? The 37 baseline cases are
+        # pre-confirmed, so the UI must show that instead of offering the buttons.
+        cur.execute(
+            "SELECT fp.outcome, cc.run_label = %s AS is_baseline "
+            "FROM flagged_patterns fp LEFT JOIN collusion_cases cc "
+            "  ON cc.case_id = fp.source_case "
+            "WHERE fp.source_case = %s",
+            (BASELINE_RUN, case_id),
+        )
+        ruled = cur.fetchone()
+    summary["ruling"] = (
+        {"outcome": ruled[0], "baseline": bool(ruled[1])} if ruled else None
+    )
     return {"summary": summary, "wallets": wallets, "edges": edges,
             "recirculated_tokens": tokens, "sequence": sequence,
             "sequence_total": sequence_total, "sequence_wallets": len(drawn)}
+
+
+class Question(BaseModel):
+    question: str
+
+
+class Verdict(BaseModel):
+    case_id: str
+    verdict: str          # "confirmed" | "rejected"
+    note: str | None = None
+
+
+@app.get("/api/case_basis/{case_id}")
+def api_case_basis(case_id: str) -> dict:
+    """The data an analyst rules on — never a bare button.
+
+    Two grounded inputs, one per CockroachDB feature:
+      1. A checklist computed from THIS ring's own trades (objective, pass/fail).
+      2. The nearest already-decided cases (vector index) and how they were ruled,
+         so the verdict is consistent with precedent instead of a lone judgment call.
+    """
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT case_id, wallets, n_wallets, n_rings, has_high_confidence, "
+            "       n_trades, total_eth, active_days, n_collections "
+            "FROM collusion_cases WHERE case_id = %s",
+            (case_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return {"error": "case not found"}
+        cols = [d[0] for d in cur.description]
+        case = dict(zip(cols, row))
+        wl = case["wallets"].split(";")
+
+        # --- checklist: derived from the ring's actual trades ---
+        cur.execute(
+            "SELECT count(*) FROM nft_trades "
+            "WHERE seller = ANY(%s) AND buyer = ANY(%s) AND seller <> buyer", (wl, wl))
+        inside = int(cur.fetchone()[0])
+        cur.execute(
+            "SELECT count(*) FROM nft_trades "
+            "WHERE (seller = ANY(%s) OR buyer = ANY(%s)) AND seller <> buyer", (wl, wl))
+        touched = int(cur.fetchone()[0]) or 1
+        cur.execute(
+            "SELECT token_id, count(*) n FROM nft_trades "
+            "WHERE seller = ANY(%s) AND buyer = ANY(%s) "
+            "GROUP BY token_id HAVING count(*) >= 3 ORDER BY n DESC LIMIT 1", (wl, wl))
+        recirc = cur.fetchone()
+        cur.execute(
+            "SELECT stddev(price_eth) / nullif(avg(price_eth), 0) FROM nft_trades "
+            "WHERE seller = ANY(%s) AND buyer = ANY(%s) AND price_eth > 0", (wl, wl))
+        cv_row = cur.fetchone()[0]
+        cv = float(cv_row) if cv_row is not None else None
+
+    self_deal = round(inside / touched * 100)
+    checklist = [
+        {"label": "Closed-loop ring among ≥3 wallets",
+         "detail": f"{case['n_wallets']} wallets, {case['n_rings']} closed loop(s)",
+         "pass": case["n_wallets"] >= 3 and case["n_rings"] >= 1},
+        {"label": "Same NFT returned to a prior holder (matched-order signature)",
+         "detail": (f"token #{str(recirc[0])[:10]}… came back {int(recirc[1])}×"
+                    if recirc else "no token recirculated 3+ times"),
+         "pass": bool(case["has_high_confidence"])},
+        {"label": "Trading stays inside the group (self-dealing)",
+         "detail": f"{self_deal}% of members' trades are with each other ({inside}/{touched})",
+         "pass": self_deal >= 80},
+        {"label": "Round-trips repriced near-identically",
+         "detail": (f"price variation (CV) {cv:.2f} — {'flat' if cv <= 0.35 else 'not flat'}"
+                    if cv is not None else "no priced trades to test"),
+         "pass": cv is not None and cv <= 0.35},
+    ]
+
+    # --- precedent: nearest decided cases via the vector index ---
+    precedents = []
+    try:
+        emb = bedrock.embed(case_to_signal(case))
+        hits = playbook.search_similar(emb, k=8, outcomes=None)
+        with connect() as conn, conn.cursor() as cur:
+            for h in hits:
+                sc = h.get("source_case")
+                if not sc or sc == case_id:
+                    continue
+                cur.execute(
+                    "SELECT n_wallets, n_trades, has_high_confidence "
+                    "FROM collusion_cases WHERE case_id = %s", (sc,))
+                cr = cur.fetchone()
+                precedents.append({
+                    "case_id": sc, "outcome": h["outcome"],
+                    "distance": round(float(h["cosine_distance"]), 3),
+                    "n_wallets": int(cr[0]) if cr else None,
+                    "n_trades": int(cr[1]) if cr else None,
+                    "same_nft_loop": bool(cr[2]) if cr else None,
+                })
+                if len(precedents) >= 5:
+                    break
+    except Exception as e:  # noqa: BLE001 — precedent is best-effort, checklist still stands
+        print(f"[case_basis] precedent lookup failed: {e}")
+
+    n_conf = sum(1 for p in precedents if p["outcome"] == "confirmed")
+    consistency = None
+    if precedents:
+        consistency = {
+            "confirmed": n_conf, "rejected": len(precedents) - n_conf,
+            "total": len(precedents),
+            "agrees_with": ("confirmed" if n_conf > len(precedents) / 2
+                            else "rejected" if n_conf < len(precedents) / 2 else "split"),
+        }
+    passed = sum(1 for c in checklist if c["pass"])
+    return {"case_id": case_id, "checklist": checklist,
+            "checklist_passed": passed, "checklist_total": len(checklist),
+            "precedents": precedents, "consistency": consistency}
+
+
+@app.post("/api/case_verdict")
+def api_case_verdict(v: Verdict) -> dict:
+    """Analyst rules on a REAL detected ring; the ring itself enters memory.
+
+    This is the loop the whole project is about — without it the memory only ever
+    learns from the scripted walkthrough. The embedded text is the same
+    case_to_signal() description build_playbook uses for the baseline cases, so a
+    ring confirmed here is indistinguishable from one learned offline.
+    """
+    if v.verdict not in ("confirmed", "rejected"):
+        return {"error": "verdict must be 'confirmed' or 'rejected'"}
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT case_id, n_wallets, n_rings, has_high_confidence, n_trades, "
+            "       total_eth, active_days, n_collections "
+            "FROM collusion_cases WHERE case_id = %s",
+            (v.case_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return {"error": f"no such case: {v.case_id}"}
+        cols = [d[0] for d in cur.description]
+        case = dict(zip(cols, row))
+        # already ruled on? don't write a duplicate row
+        cur.execute("SELECT outcome FROM flagged_patterns WHERE source_case = %s", (v.case_id,))
+        prior = cur.fetchone()
+    if prior:
+        return {"ok": True, "already": prior[0], "case_id": v.case_id, "stats": _stats()}
+
+    text = case_to_signal(case)
+    if v.note:
+        text += f" Analyst note: {v.note}"
+    pid = (confirm if v.verdict == "confirmed" else reject)(text, source_case=v.case_id)
+    return {"ok": True, "verdict": v.verdict, "case_id": v.case_id,
+            "pattern_id": pid, "signal": text, "stats": _stats()}
+
+
+@app.get("/api/mcp_status")
+def api_mcp_status() -> dict:
+    """Whether the managed-MCP path is wired up, for the UI to show or hide the panel."""
+    return {"configured": crdb_mcp.available()}
+
+
+@app.post("/api/ask")
+def api_ask(q: Question) -> dict:
+    """Answer an analyst question by querying the cluster through the managed MCP server."""
+    question = q.question.strip()
+    if not question:
+        return {"error": "Ask a question first."}
+    try:
+        return ask_memory.ask(question)
+    except crdb_mcp.MCPError as e:
+        return {"error": f"MCP server: {e}"}
+    except ValueError as e:                       # model returned something non-read-only
+        return {"error": str(e)}
+    except Exception as e:                        # noqa: BLE001 — surface it, don't 500
+        return {"error": f"{type(e).__name__}: {e}"}
 
 
 @app.post("/api/reset")
@@ -222,9 +408,14 @@ def api_reset() -> dict:
     """Wipe analyst-learned + rejected patterns; keep the 37 base cases."""
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
-            "DELETE FROM flagged_patterns "
-            "WHERE source_case = %s OR (outcome = 'rejected' AND source_case IS NULL)",
-            (LEARNED_CASE,),
+            # The baseline is defined positively: the 37 patterns mined from the
+            # 2022 cases. Everything else — the scripted story, free-text triage,
+            # analyst verdicts on live rings, CLI writes (source_case NULL) — was
+            # learned at runtime and goes. Defining it this way means a new write
+            # path can't quietly survive a reset the way the CLI once did.
+            "DELETE FROM flagged_patterns WHERE source_case IS NULL OR source_case NOT IN "
+            "(SELECT case_id FROM collusion_cases WHERE run_label = %s)",
+            (BASELINE_RUN,),
         )
         conn.commit()
     return {"ok": True, "stats": _stats()}

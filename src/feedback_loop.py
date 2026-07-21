@@ -40,10 +40,11 @@ def confirm(activity_text: str, source_case: str | None = None,
     return pid
 
 
-def reject(activity_text: str, category: str = "wash_trade") -> str:
+def reject(activity_text: str, source_case: str | None = None,
+           category: str = "wash_trade") -> str:
     """Analyst verdict: false positive. Remembered so it stops firing."""
     pid = add_pattern(category, activity_text, bedrock.embed(activity_text),
-                      None, outcome="rejected")
+                      source_case, outcome="rejected")
     return pid
 
 

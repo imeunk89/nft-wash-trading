@@ -300,6 +300,88 @@
   .rpbar::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--signal);
          border:2px solid var(--surface);cursor:pointer;border-width:2px}
   .rpbar:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+  /* ---- analyst ruling on a real detected ring ---- */
+  .ruling{margin-top:1.5rem;border:1px solid var(--line);border-top:2px solid var(--line-2);
+          border-radius:0 0 10px 10px;background:var(--surface-2);padding:1.125rem 1.25rem}
+  .rulhd{display:flex;align-items:center;gap:.4375rem;font-size:var(--fs-eyebrow);
+         text-transform:uppercase;letter-spacing:.07em;color:var(--ink-2);margin-bottom:.375rem}
+  .rulhd .ico{width:13px;height:13px;color:var(--signal)}
+  .rulwhy{font-size:var(--fs-xs);color:var(--mute);margin:0 0 .875rem;max-width:70ch;line-height:1.6}
+  .rulwhy b{color:var(--ink-2);font-weight:400;font-style:italic}
+  /* the basis: checklist + precedent, shown before the buttons */
+  .basis{margin:.25rem 0 1rem}
+  .basis .placeholder{padding:1.5rem;font-size:var(--fs-sm)}
+  .ckhd{display:flex;align-items:center;gap:.5rem;font-size:var(--fs-eyebrow);
+        text-transform:uppercase;letter-spacing:.07em;color:var(--mute);margin:.25rem 0 .5rem}
+  .ckscore{font-family:var(--mono);color:var(--ink-2)}
+  .cklist{display:flex;flex-direction:column;gap:.375rem;margin-bottom:1rem}
+  .ckrow{display:flex;gap:.5rem;align-items:flex-start;padding:.5rem .625rem;
+         border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+  .ckrow.ok{border-left:2px solid var(--signal)}
+  .ckrow.no{border-left:2px solid var(--line-2)}
+  .ckmark{flex:none;margin-top:.0625rem}
+  .ckrow.ok .ckmark{color:var(--signal)} .ckrow.no .ckmark{color:var(--mute)}
+  .ckmark .ico{width:14px;height:14px}
+  .cklbl{font-size:var(--fs-sm);color:var(--ink);line-height:1.3}
+  .ckdet{font-size:var(--fs-xs);color:var(--mute);margin-top:.125rem;font-family:var(--mono)}
+  .preclead{display:flex;justify-content:space-between;gap:1rem;align-items:baseline;
+            font-size:var(--fs-eyebrow);text-transform:uppercase;letter-spacing:.07em;
+            color:var(--mute);margin:.25rem 0 .5rem;flex-wrap:wrap}
+  .pmethod{text-transform:none;letter-spacing:0;font-family:var(--mono);color:var(--ink-2)}
+  .prectbl{width:100%;max-width:none;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .prectbl th{background:var(--surface);text-align:left;padding:.375rem .625rem;
+              font-size:var(--fs-eyebrow);text-transform:uppercase;letter-spacing:.05em;
+              color:var(--mute);font-weight:400;border-bottom:1px solid var(--line)}
+  .prectbl td{padding:.375rem .625rem;font-size:var(--fs-xs);font-family:var(--mono);
+              color:var(--ink-2);text-align:left;border-bottom:1px solid var(--line)}
+  .prectbl tr:last-child td{border-bottom:0}
+  .prectbl .pdist{text-align:right}
+  .poc{display:inline-block;padding:.0625rem .4375rem;border-radius:999px;font-size:var(--fs-eyebrow);
+       font-family:var(--sans)}
+  .poc.confirmed{background:var(--signal-bg);color:var(--signal);border:1px solid var(--signal-br)}
+  .poc.rejected{background:var(--surface-3);color:var(--mute);border:1px solid var(--line)}
+  .precverdict{margin-top:.625rem;font-size:var(--fs-sm);line-height:1.55;color:var(--ink-2);
+               padding:.625rem .75rem;border-radius:8px;background:var(--surface)}
+  .precverdict b{color:var(--ink)}
+  .precverdict.confirmed{border-left:2px solid var(--signal)}
+  .precverdict.split{border-left:2px solid var(--signal-2)}
+  .precverdict.rejected{border-left:2px solid var(--line-2)}
+  .rulbtns{display:flex;gap:.625rem;align-items:center;flex-wrap:wrap}
+  .rulout:not(:empty){margin-top:.875rem}
+  .rulmsg{display:flex;gap:.625rem;align-items:flex-start;border-radius:9px;
+          padding:.75rem .875rem;font-size:var(--fs-sm);line-height:1.6}
+  .rulmsg.ok{background:var(--signal-bg);border:1px solid var(--signal-br);color:var(--ink)}
+  .rulmsg.no{background:var(--surface-3);border:1px solid var(--line);color:var(--ink-2)}
+  .rulmsg .ico{width:15px;height:15px;margin-top:.1875rem;flex:none}
+  .rulmsg.ok .ico{color:var(--signal)} .rulmsg.no .ico{color:var(--mute)}
+  .rulsig{display:block;margin-top:.4375rem;font-family:var(--mono);font-size:var(--fs-xs);
+          color:var(--mute);line-height:1.5}
+
+  /* ---- ask the memory (managed MCP server) ---- */
+  .askpanel{margin-top:1.25rem}
+  .askhd{display:flex;gap:.75rem;align-items:flex-start;margin-bottom:1rem}
+  .askhd > .ico{width:19px;height:19px;color:var(--mute);margin-top:.25rem;flex:none}
+  .askhd .freewhy{margin-bottom:0}
+  .asksql{margin-top:1rem;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .asksql .t{display:flex;align-items:center;gap:.375rem;justify-content:space-between;
+             background:var(--surface-2);border-bottom:1px solid var(--line);
+             padding:.4375rem .75rem;font-size:var(--fs-eyebrow);text-transform:uppercase;
+             letter-spacing:.07em;color:var(--mute)}
+  .asksql .via{text-transform:none;letter-spacing:0;font-size:var(--fs-xs)}
+  .asksql pre{margin:0;padding:.75rem;font-family:var(--mono);font-size:var(--fs-xs);
+              color:var(--ink-2);white-space:pre-wrap;word-break:break-word;background:var(--surface-3)}
+  .askans{background:var(--surface-2);border:1px solid var(--line);border-radius:9px;
+          padding:.875rem 1rem;margin-top:.75rem;font-size:var(--fs-sm);line-height:1.65;
+          color:var(--ink);max-width:70ch}
+  .askrows{margin-top:.625rem;max-height:220px;overflow:auto;border:1px solid var(--line);
+           border-radius:9px}
+  .askrows table{max-width:none;border:0;border-radius:0}
+  .askrows th{position:sticky;top:0;background:var(--surface-2);text-align:left;
+              padding:.4375rem .75rem;font-size:var(--fs-eyebrow);text-transform:uppercase;
+              letter-spacing:.06em;color:var(--mute);border-bottom:1px solid var(--line);font-weight:400}
+  .askrows td,.askrows td:last-child{font-family:var(--mono);font-size:var(--fs-xs);
+              color:var(--ink-2);text-align:left;font-weight:400}
+  .askrows td:last-child{color:var(--ink-2);font-weight:400}
   .spds{display:flex;gap:.125rem;background:var(--surface-3);border:1px solid var(--line);
         border-radius:8px;padding:2px;flex:none}
   .spd{padding:.25rem .4375rem;font-size:var(--fs-eyebrow)}
@@ -405,22 +487,35 @@
   .mhead{display:flex;justify-content:space-between;gap:1rem;font-size:var(--fs-eyebrow);
          text-transform:uppercase;letter-spacing:.07em;color:var(--mute);font-weight:500;
          margin-bottom:.25rem}
-  .mtrack{position:relative;height:64px}
-  .mbar{position:absolute;left:0;right:0;top:28px;height:8px;border-radius:4px;
-        background:var(--surface-3);overflow:hidden}
-  .mzone{position:absolute;left:0;top:0;bottom:0;background:var(--signal-bg)}
-  .mtick{position:absolute;top:22px;width:1px;height:20px;background:var(--line-2)}
-  .mticklbl{position:absolute;top:46px;transform:translateX(-50%);font-size:10px;
+  .mdir{text-transform:none;letter-spacing:0;font-size:var(--fs-xs)}
+  .mtrack{position:relative;height:112px}
+  /* the bar itself carries the direction: dark/neutral at left (nothing alike)
+     warming to signal red at right (strong match) — no legend needed to read it */
+  .mbar{position:absolute;left:0;right:0;top:60px;height:12px;border-radius:6px;
+        overflow:hidden;border:1px solid var(--line);
+        background:linear-gradient(90deg,
+          var(--surface-3) 0%, var(--surface-3) 38%,
+          rgba(216,160,58,.30) 62%, rgba(232,99,92,.62) 100%)}
+  .mzone{position:absolute;top:0;bottom:0;background:rgba(232,99,92,.16)}
+  /* the jump from "before learning" to "now" */
+  .mmove{position:absolute;top:64px;height:4px;border-radius:2px;background:var(--ink-2);
+         opacity:.55;z-index:1;animation:grow .55s var(--ease)}
+  @keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+  .mgain{position:absolute;top:8px;transform:translateX(-50%);white-space:nowrap;
+         font-size:var(--fs-eyebrow);font-weight:500;color:var(--canvas);
+         background:var(--ink);border-radius:999px;padding:.125rem .4375rem;z-index:3}
+  .mtick{position:absolute;top:54px;width:1px;height:24px;background:var(--line-2)}
+  .mticklbl{position:absolute;top:82px;transform:translateX(-50%);font-size:10px;
             color:var(--mute);white-space:nowrap}
-  .mdot{position:absolute;top:32px;width:12px;height:12px;border-radius:50%;
+  .mdot{position:absolute;top:66px;width:12px;height:12px;border-radius:50%;
         transform:translate(-50%,-50%);border:2px solid var(--surface);z-index:2;
         animation:cellin .5s var(--ease)}
   .mdot.conf{background:var(--signal)}
   .mdot.rej{background:var(--mute)}
   .mdot.ghost{background:transparent;border:2px dashed var(--mute);animation:none}
-  .mlbl{position:absolute;top:2px;transform:translateX(-50%);font-family:var(--mono);
+  .mlbl{position:absolute;top:40px;transform:translateX(-50%);font-family:var(--mono);
         font-size:var(--fs-xs);color:var(--ink);white-space:nowrap}
-  .mlbl.lo{top:auto;bottom:-4px;color:var(--mute)}
+  .mlbl.lo{top:24px;color:var(--mute)}
   .mfoot{font-size:var(--fs-xs);color:var(--mute);margin-top:.875rem;line-height:1.6;max-width:66ch}
   .mfoot .swatch{display:inline-block;width:8px;height:8px;border-radius:50%;
                  vertical-align:baseline;margin-right:.1875rem}
@@ -468,14 +563,14 @@
   .eg .tag{font-size:var(--fs-eyebrow);text-transform:uppercase;letter-spacing:.06em;flex:none}
   .eg.wash .tag{color:var(--signal)} .eg.ok .tag{color:var(--mute)}
   .eg .txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:34ch}
-  .free label{display:block;font-size:var(--fs-eyebrow);text-transform:uppercase;
+  .free label,.askpanel label{display:block;font-size:var(--fs-eyebrow);text-transform:uppercase;
               letter-spacing:.07em;color:var(--mute);margin-bottom:.375rem}
-  .free textarea{width:100%;max-width:68ch;min-height:68px;background:var(--surface-3);
+  .free textarea,.askpanel textarea{width:100%;max-width:68ch;min-height:68px;background:var(--surface-3);
                  color:var(--ink);border:1px solid var(--line);border-radius:9px;
                  padding:.625rem .75rem;font:inherit;font-size:var(--fs-sm);resize:vertical;
                  transition:border-color .18s var(--ease),box-shadow .18s var(--ease)}
-  .free textarea::placeholder{color:var(--mute)}
-  .free textarea:focus{outline:none;border-color:var(--ink-2);
+  .free textarea::placeholder,.askpanel textarea::placeholder{color:var(--mute)}
+  .free textarea:focus,.askpanel textarea:focus{outline:none;border-color:var(--ink-2);
                        box-shadow:0 0 0 3px rgba(233,234,236,.08)}
 
   /* ============ modal ============ */
@@ -727,6 +822,28 @@
         <textarea id="freeAct" placeholder="e.g. five wallets kept re-selling the same token to each other for weeks…"></textarea>
         <div class="storybtns"><button class="btn ghost" onclick="freeTriage()">Triage this <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
       </div>
+    </div>
+
+    <!-- second CockroachDB surface: the managed MCP server -->
+    <div class="story askpanel" id="askPanel" hidden>
+      <div class="askhd">
+        <svg class="ico" aria-hidden="true"><use href="#i-database"/></svg>
+        <div>
+          <div class="freehd">Ask the memory</div>
+          <p class="freewhy">The agent answers questions about its own case history by querying the
+            cluster through <b>CockroachDB's Cloud Managed MCP Server</b> — a separate surface from the
+            vector index above. It holds <b>no write credentials</b>: the client refuses any tool outside
+            a read-only allowlist. The SQL it generated is always shown, so nothing is taken on trust.</p>
+        </div>
+      </div>
+      <div class="egs" id="askEgs"></div>
+      <label for="askQ">Question</label>
+      <textarea id="askQ" placeholder="e.g. how many rings were detected in total across all daily runs?"></textarea>
+      <div class="storybtns">
+        <button class="btn ghost" onclick="askMemory()" id="askBtn">Ask <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <span class="spin" id="askSpin"><span class="spinner"></span>planning SQL · running it over the MCP server…</span>
+      </div>
+      <div id="askOut" aria-live="polite"></div>
     </div>
   </section>
 </div>
@@ -1036,6 +1153,7 @@ async function openCatch(i){
     modalBody.innerHTML=`<div class="whybox">${suspHTML(s)}
       <div><div class="whyt eyebrow">Why this was flagged</div>
       <div class="whyf">${s.factors.join(' · ')} · ${match}</div></div></div>`+caseDetailHTML(d);
+    if(!d.summary.ruling) loadBasis(c.case_id);
   }catch(e){
     modalBody.innerHTML=errorHTML("Couldn't load this case.", e, `openCatch(${i})`);
   }
@@ -1074,7 +1192,9 @@ async function pickCase(i){
   document.getElementById('ci'+i).setAttribute('aria-current','true');
   detail.innerHTML=`<div class="placeholder">${ic('database')}Loading case…</div>`;
   try{
-    renderDetail(await getJSON('/api/case/'+CASES[i].case_id));
+    const d=await getJSON('/api/case/'+CASES[i].case_id);
+    renderDetail(d);
+    if(!d.summary.ruling) loadBasis(CASES[i].case_id);
   }catch(e){
     detail.innerHTML=errorHTML("Couldn't load this case.", e, `pickCase(${i})`);
   }
@@ -1251,6 +1371,7 @@ function caseDetailHTML(d){
     ${t.length?`<div class="evi smoking"><div class="t">${ic('flag')}The smoking gun — the SAME NFT, resold over and over inside this group</div>
       <div class="lead">A real sale changes ownership. These didn't:</div><table>${toks}</table></div>`:''}
     <div class="evi"><div class="t">${ic('link')}Member wallets — verify any of them on Etherscan</div>${wl}</div>
+    ${rulingHTML(s)}
     <p class="foot">* ETH volume can be inflated by trading-reward farming (LooksRare LOOKS, Blur bidding);
     the trade count and same-NFT loops are the real signal, not the dollar figure.</p>`;
 }
@@ -1282,34 +1403,49 @@ function renderProgress(){
 /* ---- distance meter: where this activity landed relative to memory ----
    Scale is cosine distance 0..1. Flag threshold 0.60 and the 0.48 / 0.86
    anchors come from src/feedback_loop.py — measured, not invented. */
+/* The meter reads left-to-right as "how much like something we already know".
+   Cosine distance runs the other way (0 = identical), which nobody reads
+   intuitively, so the axis is flipped: MATCH % = (1 - distance), plotted so
+   further right = more alike. The raw distance stays on screen for the judges. */
+const pctOf = d => Math.round((1 - Math.min(1, Math.max(0, d))) * 100);
 function meterHTML(nc, nr, prevD){
   if(!nc && !nr) return '';
-  const P = d => (Math.min(1, Math.max(0, d)) * 100).toFixed(1) + '%';
-  let t = '';
-  t += `<div class="mzone" style="width:60%"></div>`;
+  const P = d => pctOf(d).toFixed(1) + '%';
+  const marksFor = [[1,'0% · nothing like it'],[.4,'60% · flag threshold'],[0,'100% · identical']];
   let marks = '';
-  [[0,'0 · identical'],[.6,'0.60 · flag threshold'],[1,'1 · unrelated']].forEach(([v,l])=>{
+  marksFor.forEach(([v,l])=>{
     marks += `<div class="mtick" style="left:${P(v)}"></div>
-              <div class="mticklbl" style="left:${P(v)};${v===0?'transform:none;':''}${v===1?'transform:translateX(-100%);':''}">${l}</div>`;
+              <div class="mticklbl" style="left:${P(v)};${v===1?'transform:none;':''}${v===0?'transform:translateX(-100%);':''}">${l}</div>`;
   });
-  if(prevD != null)
-    marks += `<div class="mdot ghost" style="left:${P(prevD)}" title="before learning"></div>`;
+  /* the payoff: show the jump from where this scheme sat before learning */
+  if(prevD != null && nc){
+    const a = pctOf(prevD), b = pctOf(nc.distance), lo = Math.min(a,b), w = Math.abs(b-a);
+    /* no inline "was N%" label — it collides with the match label at these
+       positions. The dashed dot marks where it sat, the bar shows the jump,
+       and the badge names the size of it. */
+    marks += `<div class="mmove" style="left:${lo}%;width:${w}%"></div>
+              <div class="mdot ghost" style="left:${a}%" title="before learning: ${a}% match"></div>
+              <div class="mgain" style="left:${(a+b)/2}%">+${Math.abs(b-a)} pts closer</div>`;
+  }
   if(nc){
     marks += `<div class="mdot conf" style="left:${P(nc.distance)}"></div>
-              <div class="mlbl" style="left:${P(nc.distance)}">${nc.source_case ?? 'confirmed'} · ${nc.distance}</div>`;
+              <div class="mlbl" style="left:${P(nc.distance)}">${pctOf(nc.distance)}% match · ${nc.source_case ?? 'confirmed'}</div>`;
   }
   if(nr){
     marks += `<div class="mdot rej" style="left:${P(nr.distance)}"></div>
-              <div class="mlbl lo" style="left:${P(nr.distance)}">false-positive · ${nr.distance}</div>`;
+              <div class="mlbl lo" style="left:${P(nr.distance)}">${pctOf(nr.distance)}% · known false alarm</div>`;
   }
-  let foot = `<span class="swatch" style="background:var(--signal)"></span>nearest confirmed case
-    &nbsp;·&nbsp; <span class="swatch" style="background:var(--mute)"></span>nearest known false-positive`;
+  let foot = `<span class="swatch" style="background:var(--signal)"></span>closest confirmed case
+    &nbsp;·&nbsp; <span class="swatch" style="background:var(--mute)"></span>closest known false alarm`;
   if(prevD != null && nc)
-    foot += ` &nbsp;·&nbsp; dashed = this scheme before learning: <b>${prevD}</b> → <b>${nc.distance}</b>`;
-  foot += `<br>Calibrated on the 2022 data: a true wash-trade match lands near <b>0.48</b>; unrelated activity near <b>0.86</b>.`;
+    foot += `<br><b>${pctOf(prevD)}% → ${pctOf(nc.distance)}%</b> — the same scheme, matched more strongly
+             now that the agent has seen one like it.`;
+  foot += `<br>Match % is <b>1 − cosine distance</b> (${nc ? nc.distance : nr.distance} here).
+           On the 2022 data a true wash-trade lands near <b>52%</b>, unrelated activity near <b>14%</b>.`;
   return `<div class="meter">
-    <div class="mhead"><span>Similarity to memory</span><span>cosine distance · lower = more alike</span></div>
-    <div class="mtrack"><div class="mbar">${t}</div>${marks}</div>
+    <div class="mhead"><span>How much this looks like something already in memory</span>
+      <span class="mdir">further right = stronger match</span></div>
+    <div class="mtrack"><div class="mbar"><div class="mzone" style="left:60%;width:40%"></div></div>${marks}</div>
     <div class="mfoot">${foot}</div></div>`;
 }
 function setVerdict(cls, icon, text){
@@ -1398,7 +1534,152 @@ async function freeTriage(){
   }finally{spin.classList.remove('on');}
 }
 
-renderEgs(); refresh(); loadCatch(); loadCases(); restartStory();
+/* ============ ANALYST RULING — closes the loop on a real ring ============ */
+function rulingHTML(s){
+  const r = s.ruling;
+  if(r){
+    /* Already in memory — the 37 baseline patterns, or a ring ruled earlier in
+       this session. Say so up front rather than after a dead-end click. */
+    const what = r.baseline
+      ? `This is one of the <b>37 baseline patterns</b> mined from the 2022 cases — it was
+         already in memory before today's runs. It is part of what every new detection is
+         compared against.`
+      : `An analyst already ruled this ring <b>${esc(r.outcome)}</b>, so it is in memory.
+         Memory holds one entry per case.`;
+    return `<div class="ruling">
+      <div class="rulhd">${ic(r.outcome==='rejected'?'ban':'check')}Already in memory</div>
+      <p class="rulwhy">${what}</p></div>`;
+  }
+  return `<div class="ruling" id="ruling-${s.case_id}">
+      <div class="rulhd">${ic('flag')}Analyst ruling — grounded in data, then written to memory</div>
+      <div class="basis" id="basis-${s.case_id}">
+        <div class="placeholder">${ic('database')}Checking the criteria and past rulings…</div>
+      </div>
+      <div class="rulbtns">
+        <button class="btn" onclick="ruleCase('${s.case_id}','confirmed')">
+          ${ic('check')}Confirm as wash trading</button>
+        <button class="btn ghost" onclick="ruleCase('${s.case_id}','rejected')">
+          ${ic('ban')}Not manipulation</button>
+        <span class="spin" id="rulSpin-${s.case_id}"><span class="spinner"></span>embedding · writing to memory…</span>
+      </div>
+      <div class="rulout" id="rulOut-${s.case_id}"></div>
+    </div>`;
+}
+/* The basis is fetched after the card renders — an embedding + vector search is too
+   slow to block the evidence view on. */
+async function loadBasis(caseId){
+  const box = document.getElementById('basis-'+caseId);
+  if(!box) return;
+  try{
+    const b = await getJSON('/api/case_basis/'+caseId);
+    if(b.error){ box.innerHTML = ''; return; }
+    const check = b.checklist.map(c => `
+      <div class="ckrow ${c.pass?'ok':'no'}">
+        <span class="ckmark">${ic(c.pass?'check':'x')}</span>
+        <div><div class="cklbl">${esc(c.label)}</div>
+          <div class="ckdet">${esc(c.detail)}</div></div></div>`).join('');
+    let prec = '';
+    if(b.precedents.length){
+      const rows = b.precedents.map(p => `<tr>
+        <td><span class="poc ${p.outcome}">${p.outcome==='confirmed'?'confirmed':'rejected'}</span></td>
+        <td>${esc(p.case_id)}</td>
+        <td>${p.n_wallets??'—'}w · ${p.n_trades??'—'}t${p.same_nft_loop?' · loop':''}</td>
+        <td class="pdist">${Math.round((1-p.distance)*100)}%</td></tr>`).join('');
+      const c = b.consistency;
+      const verdict = c.agrees_with==='confirmed'
+        ? `All ${c.total===c.confirmed?c.total:c.confirmed+' of '+c.total} nearest precedents were <b>confirmed</b> wash trades — confirming here is consistent.`
+        : c.agrees_with==='rejected'
+        ? `The nearest precedents were mostly <b>rejected</b> — look closer before confirming.`
+        : `Precedent is <b>split</b> (${c.confirmed} confirmed, ${c.rejected} rejected) — this is a judgment call.`;
+      prec = `<div class="preclead">How the agent handled the most similar cases already in memory
+                <span class="pmethod">vector index · nearest neighbours</span></div>
+        <table class="prectbl"><thead><tr><th>ruling</th><th>case</th><th>profile</th><th>match</th></tr></thead>
+          <tbody>${rows}</tbody></table>
+        <div class="precverdict ${c.agrees_with}">${verdict}</div>`;
+    }
+    box.innerHTML = `
+      <div class="ckhd">Decision criteria <span class="ckscore">${b.checklist_passed}/${b.checklist_total} met</span></div>
+      <div class="cklist">${check}</div>
+      ${prec}`;
+  }catch(e){ box.innerHTML=''; console.error(e); }
+}
+async function ruleCase(caseId, verdict){
+  const out = document.getElementById('rulOut-'+caseId);
+  const spin = document.getElementById('rulSpin-'+caseId);
+  const btns = document.querySelectorAll(`#ruling-${CSS.escape(caseId)} .btn`);
+  btns.forEach(b => b.disabled = true); spin.classList.add('on'); out.innerHTML = '';
+  try{
+    const r = await postJSON('/api/case_verdict', {case_id: caseId, verdict});
+    if(r.error){
+      out.innerHTML = `<div class="rulmsg no">${ic('alert')}<div>${esc(r.error)}</div></div>`;
+      return;
+    }
+    if(r.already){
+      out.innerHTML = `<div class="rulmsg no">${ic('check')}<div>Already ruled
+        <b>${esc(r.already)}</b> — memory holds one entry per case.</div></div>`;
+    } else if(verdict === 'confirmed'){
+      out.innerHTML = `<div class="rulmsg ok">${ic('check')}<div>
+        <b>Confirmed.</b> This ring is now pattern <b>${r.stats.confirmed}</b> in memory —
+        a durable row in CockroachDB, not session state. New activity resembling it will
+        be matched against this case from now on.
+        <span class="rulsig">embedded: ${esc(r.signal)}</span></div></div>`;
+    } else {
+      out.innerHTML = `<div class="rulmsg no">${ic('ban')}<div>
+        <b>Recorded as a false positive.</b> The agent will recognise activity like this
+        and stay quiet instead of flagging it again.
+        <span class="rulsig">embedded: ${esc(r.signal)}</span></div></div>`;
+    }
+    if(r.stats) setStats(r.stats);
+  }catch(e){
+    out.innerHTML = `<div class="rulmsg no">${ic('alert')}<div>${esc(e.message)}</div></div>`;
+  }finally{ spin.classList.remove('on'); btns.forEach(b => b.disabled = false); }
+}
+
+/* ================= ASK THE MEMORY (managed MCP server) ================= */
+const ASK_EGS=[
+  "how many rings were detected in total across all daily runs?",
+  "how many detected rings have a proven same-NFT loop?",
+  "what is the largest number of wallets in any single detected ring?",
+  "which 5 cases have the most self-trades?",
+];
+function useAskEg(i){ askQ.value=ASK_EGS[i]; askQ.focus(); }
+async function initAsk(){
+  try{
+    const s=await getJSON('/api/mcp_status');
+    if(!s.configured) return;                 /* panel stays hidden without a key */
+    askPanel.hidden=false;
+    askEgs.innerHTML=ASK_EGS.map((q,i)=>`<button class="eg" onclick="useAskEg(${i})"
+      aria-label="Load question: ${esc(q)}"><span class="txt">${esc(q)}</span></button>`).join('');
+  }catch(e){ console.error(e); }
+}
+function rowsTable(rows){
+  if(!rows.length) return '<div class="askrows"><table><tr><td>no rows</td></tr></table></div>';
+  const cols=Object.keys(rows[0]);
+  return `<div class="askrows"><table><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr>
+    ${rows.slice(0,50).map(r=>`<tr>${cols.map(c=>`<td>${esc(r[c]??'—')}</td>`).join('')}</tr>`).join('')}
+    </table></div>`;
+}
+async function askMemory(){
+  const question=askQ.value.trim(); if(!question) return;
+  askBtn.disabled=true; askSpin.classList.add('on'); askOut.innerHTML='';
+  try{
+    const r=await postJSON('/api/ask',{question});
+    if(r.error){
+      askOut.innerHTML=`<div class="errbox">${ic('alert')}<div><div class="t">Couldn't answer that.</div>
+        <div class="d">${esc(r.error)}</div></div></div>`;
+      return;
+    }
+    askOut.innerHTML=`<div class="askans">${esc(r.answer)}</div>
+      <div class="asksql"><div class="t"><span>SQL the agent generated</span>
+        <span class="via">${esc(r.via)}</span></div><pre>${esc(r.sql)}</pre></div>
+      ${rowsTable(r.rows)}`;
+  }catch(e){
+    askOut.innerHTML=`<div class="errbox">${ic('alert')}<div><div class="t">Request failed.</div>
+      <div class="d">${esc(e.message)}</div></div></div>`;
+  }finally{ askBtn.disabled=false; askSpin.classList.remove('on'); }
+}
+
+renderEgs(); initAsk(); refresh(); loadCatch(); loadCases(); restartStory();
 </script>
 </body>
 </html>
