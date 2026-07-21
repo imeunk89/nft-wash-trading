@@ -76,6 +76,8 @@ CREATE TABLE IF NOT EXISTS flagged_patterns (
 );
 
 -- Distributed vector index for playbook similarity search (v25.2+).
--- NOTE: confirm exact DDL against the live cluster version at apply time.
+-- Opclass MUST match the operator the code uses (<=> cosine, see playbook.py).
+-- With vector_l2_ops the planner silently falls back to a full scan.
+-- Without an explicit opclass this defaults to L2, and the <=> queries full-scan.
 CREATE VECTOR INDEX IF NOT EXISTS flagged_patterns_embedding_idx
-    ON flagged_patterns (embedding);
+    ON flagged_patterns (embedding vector_cosine_ops);
