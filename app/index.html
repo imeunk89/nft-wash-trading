@@ -4,156 +4,498 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NFT Wash-Trading Memory Agent</title>
+<meta name="description" content="A market-surveillance agent that detects NFT wash-trading rings on-chain and remembers every confirmed case in CockroachDB so it catches the next one faster.">
+<meta name="color-scheme" content="dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0b0e14; --panel:#141922; --panel2:#1b2230; --line:#28303f;
-    --txt:#e6edf3; --dim:#8b98a9; --accent:#5b9dff;
-    --flag:#ff5d5d; --suppress:#7c8899; --novel:#ffb84d; --ok:#3fd07f;
+    /* --- surfaces (cool charcoal, never pure black) --- */
+    --canvas:#0B0C0E; --surface:#111317; --surface-2:#171A1F; --surface-3:#1D2026;
+    --line:#23262C; --line-2:#31353D;
+    /* --- ink --- */
+    --ink:#E9EAEC; --ink-2:#B3B8C0; --mute:#7C828B;
+    /* --- the only chromatic values in the system: a severity ramp --- */
+    --signal:#E05650; --signal-2:#C9902F;
+    --signal-bg:rgba(224,86,80,.10); --signal-br:rgba(224,86,80,.32);
+    --signal2-bg:rgba(201,144,47,.10); --signal2-br:rgba(201,144,47,.30);
+    --scrim:rgba(6,7,9,.72);
+    /* --- type --- */
+    --sans:'Geist',ui-sans-serif,system-ui,-apple-system,sans-serif;
+    --mono:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --fs-eyebrow:.6875rem; --fs-xs:.75rem; --fs-sm:.8125rem; --fs-base:.875rem;
+    --fs-md:.9375rem; --fs-lg:1.125rem; --fs-xl:1.375rem; --fs-2xl:1.75rem;
+    --ease:cubic-bezier(.16,1,.3,1);
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--txt);
-       font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
-  .wrap{max-width:1000px;margin:0 auto;padding:26px 20px 70px}
-  header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;
-         border-bottom:1px solid var(--line);padding-bottom:16px}
-  h1{font-size:20px;margin:0 0 4px}
-  .sub{color:var(--dim);font-size:13px;max-width:580px}
-  .mem{background:var(--panel);border:1px solid var(--line);border-radius:10px;
-       padding:9px 13px;text-align:right;white-space:nowrap;font-size:13px}
-  .mem b{color:var(--accent);font-variant-numeric:tabular-nums} .mem .r{color:var(--suppress)}
-  .tabs{display:flex;gap:6px;margin:18px 0 18px}
-  .tab{padding:8px 16px;border:1px solid var(--line);background:var(--panel);
-       border-radius:9px;cursor:pointer;font-size:13.5px;color:var(--dim)}
-  .tab.on{color:var(--txt);border-color:var(--accent);background:var(--panel2)}
-
-  .explainer{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);
-             border-radius:10px;padding:14px 16px;margin-bottom:18px;font-size:13.5px;color:#cdd8e6}
-  .explainer b{color:var(--txt)}
-  .pipe{color:var(--dim);font-size:12px;margin-top:8px;font-family:monospace}
-  .pipe span{color:var(--accent)}
-
-  /* ---- cases ---- */
-  .cases{display:grid;grid-template-columns:250px 1fr;gap:18px}
-  .caselist{display:flex;flex-direction:column;gap:8px;max-height:680px;overflow:auto}
-  .ci{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 13px;cursor:pointer}
-  .ci:hover{border-color:var(--accent)} .ci.on{border-color:var(--accent);background:var(--panel2)}
-  .ci .id{font-weight:700;font-size:14px} .ci .m{color:var(--dim);font-size:12px;margin-top:3px}
-  .ci .hc{color:var(--flag);font-size:11px}
-  .detail{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;min-height:400px}
-  .detail h2{margin:0 0 4px;font-size:18px;display:flex;align-items:center;gap:10px}
-  .badge{font-size:11px;padding:3px 9px;border-radius:6px;font-weight:600}
-  .badge.hc{background:rgba(255,93,93,.15);color:var(--flag)}
-  .finding{background:rgba(255,93,93,.07);border:1px solid rgba(255,93,93,.25);border-radius:9px;
-           padding:12px 14px;margin:14px 0;font-size:13.5px;line-height:1.6}
-  .finding b{color:var(--flag)}
-  .nums{display:flex;gap:22px;margin:14px 0 4px;flex-wrap:wrap}
-  .nums div{display:flex;flex-direction:column} .nums b{font-size:25px;font-variant-numeric:tabular-nums;line-height:1.1}
-  .nums span{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
-  .graph{background:var(--bg);border:1px solid var(--line);border-radius:10px;margin:12px 0 6px}
-  .legend{color:var(--dim);font-size:12px;display:flex;gap:16px;margin:0 0 4px}
-  .legend b{color:var(--txt)}
-  .cap{color:var(--dim);font-size:12.5px;margin:6px 0 14px}
-  .evi{margin-top:16px} .evi .t{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;color:var(--accent)}
-  .evi.smoking .t{color:var(--flag)} .evi .lead{color:var(--dim);font-size:12.5px;margin-bottom:8px}
-  table{border-collapse:collapse;font-size:13px;width:100%;max-width:380px}
-  td{padding:5px 10px;border-bottom:1px solid var(--line)}
-  td:first-child{font-family:monospace} td:last-child{text-align:right;color:var(--flag);font-weight:600}
-  .wl{display:flex;flex-direction:column;gap:4px;font-family:monospace;font-size:12.5px}
-  .foot{color:var(--dim);font-size:11.5px;margin-top:16px;font-style:italic}
-  .placeholder{color:var(--dim);text-align:center;padding:80px 0}
-
-  /* ---- daily catch ---- */
-  .run{margin-bottom:20px}
-  .runhdr{font-size:13px;color:var(--dim);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
-  .runhdr b{color:var(--txt)}
-  .catch{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line);
-         border-radius:10px;padding:11px 14px;margin-bottom:7px}
-  .catch.hot{border-color:rgba(255,93,93,.4);background:rgba(255,93,93,.05)}
-  .pri{font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;background:var(--panel2);
-       color:var(--suppress);letter-spacing:.04em;white-space:nowrap}
-  .pri.hi{background:rgba(255,93,93,.16);color:var(--flag)}
-  .cinfo{flex:1;font-size:13.5px} .cinfo b{font-family:monospace}
-  .hcx{color:var(--flag);font-size:12px}
-  .match{color:var(--dim);font-size:12.5px;white-space:nowrap} .match b{color:var(--accent)}
-  .susp{display:flex;flex-direction:column;align-items:center;justify-content:center;width:58px;
-        height:52px;border-radius:9px;flex:none;border:1px solid var(--line)}
-  .ssc{font-size:22px;font-weight:750;line-height:1;font-variant-numeric:tabular-nums}
-  .ssl{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin-top:3px}
-  .sb-high{background:rgba(255,93,93,.12);border-color:rgba(255,93,93,.4)} .sb-high .ssc{color:var(--flag)}
-  .sb-elev{background:rgba(255,184,77,.1);border-color:rgba(255,184,77,.35)} .sb-elev .ssc{color:var(--novel)}
-  .sb-low{background:var(--panel2)} .sb-low .ssc{color:var(--suppress)}
-  .sfac{color:var(--dim);font-size:12px;margin-top:4px}
-  .catch{cursor:pointer} .catch:hover{border-color:var(--accent)}
-  .chev{color:var(--dim);font-size:20px;margin-left:2px}
-  .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;
-         align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
-  .modbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:640px;
-          width:100%;padding:22px;position:relative}
-  .modx{position:absolute;top:12px;right:16px;font-size:26px;color:var(--dim);cursor:pointer;line-height:1}
-  .modx:hover{color:var(--txt)}
-  .modspin{color:var(--dim);padding:40px;text-align:center}
-  .whybox{display:flex;align-items:center;gap:14px;background:rgba(255,93,93,.06);
-          border:1px solid rgba(255,93,93,.25);border-radius:10px;padding:12px 14px;margin-bottom:6px}
-  .whyt{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--flag);margin-bottom:3px}
-  .whyf{font-size:13.5px}
-
-  /* ---- memory: guided story ---- */
-  .story{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px}
-  .progress{display:flex;gap:6px;margin-bottom:16px}
-  .dot{height:5px;flex:1;background:var(--line);border-radius:3px}
-  .dot.done{background:var(--accent)} .dot.cur{background:var(--novel)}
-  .narr{font-size:15.5px;line-height:1.6;margin-bottom:14px}
-  .actbox{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:12px 14px;
-          font-size:13.5px;color:#cdd8e6;margin-bottom:14px}
-  .actbox .t{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
-  .verdict{display:inline-flex;align-items:center;gap:8px;font-weight:750;font-size:15px;padding:5px 12px;border-radius:8px}
-  .v-flag{background:rgba(255,93,93,.14);color:var(--flag)} .v-suppress{background:rgba(124,136,153,.16);color:var(--suppress)}
-  .v-novel{background:rgba(255,184,77,.14);color:var(--novel)} .v-confirmed{background:rgba(255,93,93,.14);color:var(--flag)}
-  .v-rejected{background:rgba(124,136,153,.16);color:var(--suppress)}
-  .result{margin:14px 0;display:none}
-  .prec{margin-top:12px;padding:10px 13px;background:var(--panel2);border-radius:9px;border-left:3px solid var(--line);font-size:13px}
-  .prec .t{color:var(--dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
-  .prec.confirmed{border-left-color:var(--flag)} .prec.rejected{border-left-color:var(--suppress)}
-  .after{background:rgba(91,157,255,.08);border:1px solid rgba(91,157,255,.25);border-radius:9px;
-         padding:12px 14px;font-size:13.5px;line-height:1.6;margin-top:12px;display:none}
-  .after b{color:var(--accent)} .after .up{color:var(--ok);font-weight:700}
-  .storybtns{display:flex;gap:10px;margin-top:18px;align-items:center}
-  button{background:var(--accent);color:#04101f;border:0;border-radius:9px;padding:11px 20px;font-weight:650;cursor:pointer;font:inherit}
-  button.ghost{background:transparent;color:var(--dim);border:1px solid var(--line);font-weight:500;padding:11px 16px}
-  button:disabled{opacity:.5;cursor:default}
-  .explain{margin-top:12px;font-size:13.5px;color:#dbe7f5}
-  .explain .t{color:var(--accent);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
-  .free{margin-top:22px;border-top:1px solid var(--line);padding-top:16px;color:var(--dim);font-size:13px}
-  .free textarea{width:100%;min-height:60px;margin-top:8px;background:var(--panel2);color:var(--txt);
-                 border:1px solid var(--line);border-radius:9px;padding:10px 12px;font:inherit}
-  .spin{color:var(--dim);font-size:13px;margin-top:6px;display:none}
-  code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12.5px}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--canvas);color:var(--ink);
+       font-family:var(--sans);font-size:var(--fs-base);line-height:1.65;
+       -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  b,strong{font-weight:600}
+  a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line-2);
+    transition:border-color .18s var(--ease),color .18s var(--ease)}
+  a:hover{border-bottom-color:var(--ink-2)}
+  code{font-family:var(--mono);font-size:.9em;background:var(--surface-3);
+       border:1px solid var(--line);padding:.1em .4em;border-radius:5px}
+  .num{font-variant-numeric:tabular-nums}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .eyebrow{font-size:var(--fs-eyebrow);text-transform:uppercase;letter-spacing:.08em;
+           font-weight:500;color:var(--mute)}
+  .ico{width:1em;height:1em;flex:none;stroke:currentColor;fill:none;
+       stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
   [hidden]{display:none!important}
+  .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+      clip:rect(0 0 0 0);white-space:nowrap;border:0}
+  :focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:4px}
+  *{scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:5px;
+                            border:2px solid var(--surface);background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background:var(--mute);background-clip:padding-box}
+
+  .wrap{max-width:1120px;margin:0 auto;padding:0 clamp(1.5rem,3.5vw,2.75rem)}
+
+  /* ============ header ============ */
+  .topbar{position:sticky;top:0;z-index:40;background:rgba(11,12,14,.82);
+          backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+          border-bottom:1px solid var(--line)}
+  /* vertical only — a `padding` shorthand here would wipe out .wrap's gutter */
+  .topin{display:flex;justify-content:space-between;align-items:flex-start;
+         gap:1.5rem;padding-top:1.375rem;padding-bottom:1.25rem}
+  h1{font-size:clamp(1.0625rem,1.4vw + .75rem,1.25rem);font-weight:600;
+     letter-spacing:-.018em;line-height:1.25;margin:.375rem 0 .375rem}
+  .sub{color:var(--ink-2);font-size:var(--fs-sm);max-width:62ch;line-height:1.6}
+  .mem{border:1px solid var(--line);background:var(--surface);border-radius:10px;
+       padding:.625rem .875rem;text-align:right;flex:none}
+  .mem .row{font-size:var(--fs-sm);color:var(--mute);white-space:nowrap}
+  .mem .row + .row{margin-top:.1875rem}
+  .mem b{font-family:var(--mono);font-variant-numeric:tabular-nums;
+         font-weight:500;color:var(--ink);font-size:var(--fs-base)}
+  .mem .row.q b{color:var(--mute)}
+
+  /* ============ tabs ============ */
+  .tabs{display:flex;gap:1.75rem;border-bottom:1px solid var(--line);margin-bottom:1.75rem}
+  .tab{display:inline-flex;align-items:center;gap:.5rem;min-height:44px;
+       padding:.625rem 0;background:none;border:0;border-bottom:2px solid transparent;
+       margin-bottom:-1px;color:var(--mute);font:inherit;font-size:var(--fs-sm);
+       font-weight:500;cursor:pointer;transition:color .2s var(--ease),border-color .2s var(--ease)}
+  .tab:hover{color:var(--ink-2)}
+  .tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+  .tab:focus-visible{outline-offset:-2px}
+
+  /* ============ explainer ============ */
+  .explainer{border:1px solid var(--line);border-left:2px solid var(--line-2);
+             background:var(--surface);border-radius:0 10px 10px 0;
+             padding:1rem 1.125rem;margin-bottom:1.5rem;
+             font-size:var(--fs-sm);color:var(--ink-2);max-width:88ch}
+  .explainer b{color:var(--ink)}
+  .explainer i{color:var(--ink-2)}
+  .pipe{font-family:var(--mono);font-size:var(--fs-xs);color:var(--mute);
+        margin-top:.75rem;line-height:1.7}
+  .pipe span{color:var(--ink-2)}
+
+  /* ============ situation board ============ */
+  .board{display:grid;grid-template-columns:1fr 300px;gap:.875rem;margin-bottom:1.5rem}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1rem 1.125rem}
+  .phead{display:flex;align-items:center;gap:.5rem;font-size:var(--fs-eyebrow);
+         text-transform:uppercase;letter-spacing:.08em;font-weight:500;color:var(--mute);
+         margin-bottom:.625rem}
+  .phead .ico{width:12px;height:12px}
+  .phead .leg{margin-left:auto;display:flex;gap:.875rem;text-transform:none;letter-spacing:0;
+              font-size:var(--fs-xs);font-weight:400}
+  .leg span{display:inline-flex;align-items:center;gap:.3125rem}
+  .leg i{width:8px;height:8px;border-radius:2px;display:inline-block}
+  .chartwrap{position:relative}
+  #dayChart{display:block;width:100%;height:auto}
+  #dayChart .hit{cursor:pointer}
+  #chartTip{position:absolute;pointer-events:none;background:var(--surface-3);
+            border:1px solid var(--line-2);border-radius:8px;padding:.5rem .625rem;
+            font-size:var(--fs-xs);color:var(--ink-2);display:none;z-index:5;
+            white-space:nowrap;box-shadow:0 8px 24px -8px rgba(0,0,0,.5)}
+  #chartTip b{font-family:var(--mono);color:var(--ink);font-weight:500}
+  .tiles{display:grid;grid-template-rows:repeat(4,1fr);gap:.625rem}
+  .tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;
+        padding:.625rem 1rem;display:flex;flex-direction:column;justify-content:center;gap:.0625rem}
+  .tile .k{font-size:var(--fs-eyebrow);text-transform:uppercase;letter-spacing:.07em;
+           color:var(--mute);font-weight:500}
+  .tile .v{font-family:var(--mono);font-size:var(--fs-2xl);font-weight:500;line-height:1.15;
+           letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .tile .v small{font-size:var(--fs-base);color:var(--mute);font-weight:400}
+  .tile .d{font-size:var(--fs-xs);color:var(--mute)}
+  .tile.hot .v{color:var(--signal)}
+
+  /* ============ worklist (daily monitor) ============ */
+  .run{margin-bottom:1.75rem;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .runhdr{display:flex;align-items:center;gap:.5rem;padding:.625rem .875rem;
+          background:var(--surface-2);border-bottom:1px solid var(--line);
+          font-size:var(--fs-sm);color:var(--mute)}
+  .runhdr .d{font-family:var(--mono);color:var(--ink);font-weight:500}
+  .runhdr .n{margin-left:auto;font-variant-numeric:tabular-nums}
+  .runhdr .n b{color:var(--ink)}
+  .live{width:6px;height:6px;border-radius:50%;background:var(--signal);flex:none;
+        animation:pulse 2.4s var(--ease) infinite}
+  .cpulse{animation:pulse 2.4s var(--ease) infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.32}}
+
+  .catch{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;
+         gap:1rem;width:100%;text-align:left;font:inherit;color:inherit;
+         background:var(--surface);border:0;border-bottom:1px solid var(--line);
+         padding:.875rem 1rem .875rem .875rem;cursor:pointer;position:relative;
+         transition:background .18s var(--ease)}
+  .catch::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;
+                 background:var(--signal);transform:scaleY(0);transform-origin:center;
+                 transition:transform .22s var(--ease)}
+  .catch:hover{background:var(--surface-2)}
+  .catch:hover::before{transform:scaleY(1)}
+  .catch:hover .chev{transform:translateX(2px);color:var(--ink-2)}
+  .catch:focus-visible{outline-offset:-2px}
+  .run .catch:last-child{border-bottom:0}
+  .rise{animation:rise .5s var(--ease) backwards;animation-delay:calc(var(--i,0) * 36ms)}
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .susp{display:flex;flex-direction:column;align-items:center;justify-content:center;
+        width:60px;min-height:52px;border-radius:8px;border:1px solid var(--line);
+        background:var(--surface-3);padding:.25rem}
+  .ssc{font-family:var(--mono);font-size:var(--fs-xl);font-weight:500;line-height:1;
+       font-variant-numeric:tabular-nums;color:var(--mute)}
+  .ssl{display:flex;align-items:center;gap:.1875rem;font-size:9px;text-transform:uppercase;
+       letter-spacing:.06em;color:var(--mute);margin-top:.25rem;font-weight:500}
+  .ssl .ico{width:9px;height:9px;stroke-width:2.25}
+  .sb-high{background:var(--signal-bg);border-color:var(--signal-br)}
+  .sb-high .ssc,.sb-high .ssl{color:var(--signal)}
+  .sb-elev{background:var(--signal2-bg);border-color:var(--signal2-br)}
+  .sb-elev .ssc,.sb-elev .ssl{color:var(--signal-2)}
+
+  .cinfo{min-width:0}
+  .cinfo .id{font-family:var(--mono);font-size:var(--fs-sm);font-weight:500;color:var(--ink)}
+  .cinfo .meta{font-size:var(--fs-sm);color:var(--ink-2)}
+  .loop{display:inline-flex;align-items:center;gap:.25rem;color:var(--signal);font-weight:500}
+  .loop .ico{width:11px;height:11px}
+  .sfac{font-size:var(--fs-xs);color:var(--mute);margin-top:.1875rem;
+        overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .match{font-size:var(--fs-xs);color:var(--mute);text-align:right;white-space:nowrap}
+  .match b{font-family:var(--mono);font-weight:500;color:var(--ink-2)}
+  .chev{color:var(--mute);display:flex;transition:transform .22s var(--ease),color .18s var(--ease)}
+  .chev .ico{width:16px;height:16px}
+
+  /* ============ cases ============ */
+  .cases{display:grid;grid-template-columns:280px 1fr;gap:1.25rem;align-items:start}
+  .caselist{display:flex;flex-direction:column;max-height:72vh;overflow-y:auto;
+            border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+  .ci{display:block;width:100%;text-align:left;font:inherit;color:inherit;background:none;
+      border:0;border-bottom:1px solid var(--line);padding:.75rem .875rem;cursor:pointer;
+      position:relative;transition:background .18s var(--ease)}
+  .ci:last-child{border-bottom:0}
+  .ci::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--ink);
+              transform:scaleY(0);transition:transform .22s var(--ease)}
+  .ci:hover{background:var(--surface-2)}
+  .ci[aria-current="true"]{background:var(--surface-2)}
+  .ci[aria-current="true"]::before{transform:scaleY(1)}
+  .ci:focus-visible{outline-offset:-2px}
+  .ci .id{font-family:var(--mono);font-size:var(--fs-sm);font-weight:500;
+          display:flex;align-items:center;gap:.375rem}
+  .ci .id .ico{width:11px;height:11px;color:var(--signal)}
+  .ci .m{color:var(--mute);font-size:var(--fs-xs);margin-top:.125rem}
+
+  .detail{background:var(--surface);border:1px solid var(--line);border-radius:12px;
+          padding:1.5rem;min-height:420px}
+  .detail h2{margin:0;font-size:var(--fs-lg);font-weight:600;letter-spacing:-.015em;
+             display:flex;align-items:center;gap:.625rem;flex-wrap:wrap}
+  .detail h2 .cid{font-family:var(--mono);font-weight:500}
+  .badge{display:inline-flex;align-items:center;gap:.3125rem;font-size:var(--fs-eyebrow);
+         font-weight:500;padding:.1875rem .5rem;border-radius:6px;
+         background:var(--signal-bg);border:1px solid var(--signal-br);color:var(--signal)}
+  .badge .ico{width:11px;height:11px}
+  .finding{display:flex;gap:.75rem;background:var(--signal-bg);border:1px solid var(--signal-br);
+           border-radius:9px;padding:.875rem 1rem;margin:1.125rem 0;
+           font-size:var(--fs-sm);line-height:1.65;color:var(--ink-2)}
+  .finding b{color:var(--ink)}
+  .finding > .ico{width:15px;height:15px;color:var(--signal);margin-top:.25rem}
+
+  .nums{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);
+        border-radius:10px;overflow:hidden;margin:1.125rem 0}
+  .nums div{padding:.875rem 1rem;border-right:1px solid var(--line);background:var(--surface)}
+  .nums div:last-child{border-right:0}
+  .nums b{display:block;font-family:var(--mono);font-size:var(--fs-2xl);font-weight:500;
+          line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .nums span{display:block;font-size:var(--fs-eyebrow);text-transform:uppercase;
+             letter-spacing:.07em;color:var(--mute);margin-top:.25rem}
+
+  .legend{display:flex;gap:1.25rem;flex-wrap:wrap;color:var(--mute);font-size:var(--fs-xs);
+          margin-bottom:.5rem}
+  .legend b{color:var(--ink-2);font-family:var(--mono);font-weight:500}
+  .graph{background:var(--canvas);border:1px solid var(--line);border-radius:10px;
+         padding:.5rem;margin-bottom:.5rem}
+  .graph svg{display:block;width:100%;height:auto}
+  .cap{color:var(--mute);font-size:var(--fs-xs);margin:0 0 1.25rem;max-width:80ch}
+  .cap .trunc{color:var(--ink-2)}
+  .cap .trunc b{font-family:var(--mono);font-weight:500;color:var(--ink)}
+
+  .evi{margin-top:1.25rem}
+  .evi .t{display:flex;align-items:center;gap:.375rem;font-size:var(--fs-eyebrow);
+          text-transform:uppercase;letter-spacing:.07em;font-weight:500;
+          color:var(--mute);margin-bottom:.375rem}
+  .evi .t .ico{width:12px;height:12px}
+  .evi.smoking .t{color:var(--signal)}
+  .evi .lead{color:var(--mute);font-size:var(--fs-xs);margin-bottom:.625rem}
+  table{border-collapse:collapse;font-size:var(--fs-sm);width:100%;max-width:360px;
+        border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  td{padding:.4375rem .75rem;border-bottom:1px solid var(--line);background:var(--surface-2)}
+  tr:last-child td{border-bottom:0}
+  td:first-child{font-family:var(--mono);color:var(--ink-2)}
+  td:last-child{text-align:right;color:var(--signal);font-weight:500;
+                font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .wl{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:.125rem 1rem}
+  .wl a{font-family:var(--mono);font-size:var(--fs-xs);color:var(--ink-2);padding:.25rem 0;
+        display:inline-flex;align-items:center;gap:.375rem;border-bottom-color:transparent;
+        justify-self:start}
+  .wl a:hover{color:var(--ink);border-bottom-color:var(--line-2)}
+  .wl a .ico{width:11px;height:11px;color:var(--mute)}
+  .more summary{display:inline-flex;align-items:center;gap:.375rem;min-height:44px;
+                cursor:pointer;list-style:none;font-size:var(--fs-xs);color:var(--mute)}
+  .more summary::-webkit-details-marker{display:none}
+  .more summary:hover{color:var(--ink-2)}
+  .more summary .ico{width:12px;height:12px;transition:transform .22s var(--ease)}
+  .more[open] summary .ico{transform:rotate(90deg)}
+  .foot{color:var(--mute);font-size:var(--fs-xs);margin-top:1.25rem;line-height:1.6}
+
+  /* ============ states: empty / error / loading ============ */
+  .placeholder{display:flex;flex-direction:column;align-items:center;gap:.625rem;
+               color:var(--mute);text-align:center;padding:4.5rem 1.5rem;font-size:var(--fs-sm)}
+  .placeholder .ico{width:20px;height:20px;color:var(--line-2)}
+  .errbox{display:flex;gap:.75rem;align-items:flex-start;border:1px solid var(--signal-br);
+          border-left:2px solid var(--signal);background:var(--signal-bg);
+          border-radius:0 9px 9px 0;padding:.875rem 1rem;font-size:var(--fs-sm)}
+  .errbox .ico{width:15px;height:15px;color:var(--signal);margin-top:.1875rem;flex:none}
+  .errbox .t{font-weight:500;color:var(--ink)}
+  .errbox .d{color:var(--ink-2);font-size:var(--fs-xs);margin:.1875rem 0 .625rem;
+             font-family:var(--mono);word-break:break-word}
+  .sk{position:relative;overflow:hidden;background:var(--surface-2);border-radius:6px}
+  .sk::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+             background:linear-gradient(90deg,transparent,rgba(255,255,255,.045),transparent);
+             animation:shimmer 1.4s infinite}
+  @keyframes shimmer{100%{transform:translateX(100%)}}
+  .skrow{display:grid;grid-template-columns:auto 1fr auto;gap:1rem;align-items:center;
+         padding:.875rem;border-bottom:1px solid var(--line);background:var(--surface)}
+
+  /* ============ buttons ============ */
+  button.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4375rem;
+             min-height:44px;background:var(--ink);color:var(--canvas);border:1px solid var(--ink);
+             border-radius:8px;padding:.625rem 1.125rem;font:inherit;font-size:var(--fs-sm);
+             font-weight:500;cursor:pointer;
+             transition:transform .22s var(--ease),opacity .18s var(--ease)}
+  button.btn:hover:not(:disabled){transform:translateY(-1px)}
+  button.btn:active:not(:disabled){transform:translateY(0) scale(.985)}
+  button.btn:disabled{opacity:.45;cursor:not-allowed}
+  button.btn.ghost{background:transparent;color:var(--ink-2);border-color:var(--line)}
+  button.btn.ghost:hover:not(:disabled){border-color:var(--line-2);color:var(--ink)}
+  button.btn .ico{width:14px;height:14px}
+  .spinner{width:13px;height:13px;border:1.75px solid currentColor;border-top-color:transparent;
+           border-radius:50%;animation:spin .7s linear infinite;flex:none}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ============ memory story ============ */
+  .story{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1.5rem}
+
+  /* labeled step rail — the whole arc is visible before you press anything */
+  .steps{display:flex;gap:.5rem;margin-bottom:1.25rem;flex-wrap:wrap}
+  .stp{flex:1 1 130px;min-width:118px;border-top:2px solid var(--line);padding-top:.4375rem;
+       font-size:var(--fs-xs);color:var(--mute);display:flex;gap:.4375rem;align-items:flex-start;
+       line-height:1.35;transition:border-color .3s var(--ease),color .3s var(--ease)}
+  .stp .n{font-family:var(--mono);font-size:var(--fs-eyebrow);margin-top:.0625rem}
+  .stp.done{border-top-color:var(--ink-2);color:var(--ink-2)}
+  .stp.cur{border-top-color:var(--signal);color:var(--ink)}
+  .stp.cur .n{color:var(--signal)}
+
+  /* memory shelf — one square per remembered pattern */
+  .shelf{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;
+         padding:.75rem 1rem .875rem;margin-bottom:1.25rem}
+  .shelf .phead{margin-bottom:0}
+  .shelf .cnt{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400}
+  .shelf .cnt b{font-family:var(--mono);color:var(--ink);font-weight:500}
+  .cells{display:flex;flex-wrap:wrap;gap:3px;margin-top:.625rem}
+  .cell{width:7px;height:7px;border-radius:2px;background:var(--ink-2);opacity:.7}
+  .cell.rej{background:transparent;border:1px solid var(--mute);opacity:.9}
+  .cell.new{background:var(--signal);opacity:1;animation:cellin .6s var(--ease)}
+  @keyframes cellin{from{transform:scale(.2);opacity:0}}
+  .cell.more{width:auto;height:auto;background:none;opacity:1;color:var(--mute);
+             font-size:10px;font-family:var(--mono);line-height:7px}
+
+  /* distance meter — makes "vector similarity" visible */
+  .meter{margin:1rem 0 .25rem;max-width:660px}
+  .mhead{display:flex;justify-content:space-between;gap:1rem;font-size:var(--fs-eyebrow);
+         text-transform:uppercase;letter-spacing:.07em;color:var(--mute);font-weight:500;
+         margin-bottom:.25rem}
+  .mtrack{position:relative;height:64px}
+  .mbar{position:absolute;left:0;right:0;top:28px;height:8px;border-radius:4px;
+        background:var(--surface-3);overflow:hidden}
+  .mzone{position:absolute;left:0;top:0;bottom:0;background:var(--signal-bg)}
+  .mtick{position:absolute;top:22px;width:1px;height:20px;background:var(--line-2)}
+  .mticklbl{position:absolute;top:46px;transform:translateX(-50%);font-size:10px;
+            color:var(--mute);white-space:nowrap}
+  .mdot{position:absolute;top:32px;width:12px;height:12px;border-radius:50%;
+        transform:translate(-50%,-50%);border:2px solid var(--surface);z-index:2;
+        animation:cellin .5s var(--ease)}
+  .mdot.conf{background:var(--signal)}
+  .mdot.rej{background:var(--mute)}
+  .mdot.ghost{background:transparent;border:2px dashed var(--mute);animation:none}
+  .mlbl{position:absolute;top:2px;transform:translateX(-50%);font-family:var(--mono);
+        font-size:var(--fs-xs);color:var(--ink);white-space:nowrap}
+  .mlbl.lo{top:auto;bottom:-4px;color:var(--mute)}
+  .mfoot{font-size:var(--fs-xs);color:var(--mute);margin-top:.875rem;line-height:1.6;max-width:66ch}
+  .mfoot .swatch{display:inline-block;width:8px;height:8px;border-radius:50%;
+                 vertical-align:baseline;margin-right:.1875rem}
+  .mfoot b{font-family:var(--mono);color:var(--ink-2);font-weight:500}
+  .narr{font-size:var(--fs-md);line-height:1.65;margin-bottom:1rem;max-width:68ch;color:var(--ink-2)}
+  .narr b{color:var(--ink)}
+  .actbox{background:var(--surface-3);border:1px solid var(--line);border-radius:9px;
+          padding:.875rem 1rem;font-size:var(--fs-sm);color:var(--ink-2);
+          margin-bottom:1rem;max-width:68ch}
+  .actbox .t{margin-bottom:.3125rem}
+  .verdict{display:inline-flex;align-items:center;gap:.4375rem;font-weight:600;
+           font-size:var(--fs-sm);padding:.3125rem .75rem;border-radius:7px;
+           border:1px solid transparent;letter-spacing:.02em}
+  .verdict .ico{width:13px;height:13px}
+  .v-flag,.v-confirmed{background:var(--signal-bg);border-color:var(--signal-br);color:var(--signal)}
+  .v-novel{background:var(--signal2-bg);border-color:var(--signal2-br);color:var(--signal-2)}
+  .v-suppress,.v-rejected{background:var(--surface-3);border-color:var(--line);color:var(--mute)}
+  .result{margin:1rem 0;display:none}
+  .prec{margin-top:.75rem;padding:.75rem .875rem;background:var(--surface-3);border-radius:9px;
+        border-left:2px solid var(--line);font-size:var(--fs-sm);color:var(--ink-2);max-width:68ch}
+  .prec .t{margin-bottom:.25rem}
+  .prec.confirmed{border-left-color:var(--signal)}
+  .prec.rejected{border-left-color:var(--mute)}
+  .after{background:var(--surface-2);border:1px solid var(--line);border-radius:9px;
+         padding:.875rem 1rem;font-size:var(--fs-sm);line-height:1.65;margin-top:.75rem;
+         display:none;max-width:68ch;color:var(--ink-2)}
+  .after b{color:var(--ink)} .after .up{color:var(--ink);font-weight:600}
+  .storybtns{display:flex;gap:.625rem;margin-top:1.25rem;align-items:center;flex-wrap:wrap}
+  .explain{margin-top:.75rem;font-size:var(--fs-sm);color:var(--ink-2);max-width:68ch}
+  .explain .t{margin-bottom:.25rem}
+  .spin{display:none;align-items:center;gap:.5rem;color:var(--mute);
+        font-size:var(--fs-xs);margin-top:.625rem}
+  .spin.on{display:flex}
+  .free{margin-top:1.5rem;border-top:1px solid var(--line);padding-top:1.25rem}
+  .free label{display:block;font-size:var(--fs-sm);color:var(--ink-2);margin-bottom:.5rem}
+  .free textarea{width:100%;max-width:68ch;min-height:68px;background:var(--surface-3);
+                 color:var(--ink);border:1px solid var(--line);border-radius:9px;
+                 padding:.625rem .75rem;font:inherit;font-size:var(--fs-sm);resize:vertical;
+                 transition:border-color .18s var(--ease),box-shadow .18s var(--ease)}
+  .free textarea::placeholder{color:var(--mute)}
+  .free textarea:focus{outline:none;border-color:var(--ink-2);
+                       box-shadow:0 0 0 3px rgba(233,234,236,.08)}
+
+  /* ============ modal ============ */
+  .modal{display:none;position:fixed;inset:0;background:var(--scrim);z-index:50;
+         align-items:flex-start;justify-content:center;padding:3rem 1rem;overflow:auto;
+         -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+  .modal.on{display:flex;animation:fade .2s var(--ease)}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .modbox{position:relative;z-index:51;background:var(--surface);border:1px solid var(--line-2);
+          border-radius:14px;max-width:680px;width:100%;padding:1.5rem;
+          box-shadow:0 24px 64px -12px rgba(0,0,0,.6);
+          animation:pop .24s var(--ease)}
+  @keyframes pop{from{opacity:0;transform:scale(.985) translateY(4px)}to{opacity:1;transform:none}}
+  .modx{position:absolute;top:.625rem;right:.625rem;width:44px;height:44px;display:flex;
+        align-items:center;justify-content:center;background:none;border:0;color:var(--mute);
+        cursor:pointer;border-radius:8px;transition:color .18s var(--ease),background .18s var(--ease)}
+  .modx:hover{color:var(--ink);background:var(--surface-2)}
+  .modx .ico{width:16px;height:16px}
+  .whybox{display:flex;align-items:center;gap:.875rem;background:var(--surface-2);
+          border:1px solid var(--line);border-radius:10px;padding:.875rem 1rem;
+          margin:0 2.5rem 1.125rem 0}
+  .whyt{margin-bottom:.1875rem}
+  .whyf{font-size:var(--fs-sm);color:var(--ink-2)}
+
+  /* ============ responsive ============ */
+  @media (max-width:960px){
+    .board{grid-template-columns:1fr}
+    .tiles{grid-template-rows:none;grid-template-columns:repeat(2,1fr)}
+    .cases{grid-template-columns:1fr}
+    .caselist{flex-direction:row;max-height:none;overflow-x:auto;overflow-y:hidden;
+              -webkit-overflow-scrolling:touch}
+    .ci{border-bottom:0;border-right:1px solid var(--line);min-width:190px;flex:none}
+    .ci::before{width:auto;height:2px;left:0;right:0;top:auto;bottom:0;
+                transform:scaleX(0)}
+    .ci[aria-current="true"]::before{transform:scaleX(1)}
+    .nums{grid-template-columns:repeat(2,1fr)}
+    .nums div:nth-child(2){border-right:0}
+    .nums div:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  }
+  @media (max-width:720px){
+    .wrap{padding:0 1rem}
+    /* the full masthead would eat half a phone screen if it stayed pinned */
+    .topbar{position:static;backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--canvas)}
+    .topin{flex-direction:column;gap:.875rem}
+    .mem{align-self:stretch;text-align:left}
+    .runhdr{flex-wrap:wrap}
+    .runhdr .d{white-space:nowrap}
+    .catch{grid-template-columns:auto 1fr;gap:.75rem;padding:.75rem}
+    .catch .match{grid-column:1 / -1;text-align:left;white-space:normal}
+    .catch .chev{display:none}
+    .sfac{white-space:normal}
+    .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .tab{white-space:nowrap}
+    .whybox{margin-right:2.5rem;flex-wrap:wrap}
+    .modal{padding:1rem}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+                         transition-duration:.01ms!important;scroll-behavior:auto!important}
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></symbol>
+  <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-repeat" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7.7L3 8"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4Z"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+  <symbol id="i-pointer" viewBox="0 0 24 24"><path d="M12 19H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3"/><path d="m14 14 6 6"/><path d="M14 20v-6h6"/></symbol>
+</defs></svg>
+
+<header class="topbar">
+  <div class="wrap topin">
     <div>
+      <div class="eyebrow">Market surveillance · Ethereum · LooksRare</div>
       <h1>NFT Wash-Trading Memory Agent</h1>
       <div class="sub">A market-surveillance agent that finds fake-volume trading rings on-chain —
       and remembers every confirmed case so it catches the next one faster.</div>
     </div>
     <div class="mem">
-      <div>memory: <b id="mConf">–</b> confirmed cases</div>
-      <div><span class="r"><b id="mRej">–</b> known false-positives</span></div>
+      <div class="row">memory: <b id="mConf" class="num">–</b> confirmed cases</div>
+      <div class="row q"><b id="mRej" class="num">–</b> known false-positives</div>
     </div>
-  </header>
+  </div>
+</header>
 
-  <div class="tabs">
-    <div class="tab on" id="t0" onclick="showTab('catch')">🔴 Daily monitor</div>
-    <div class="tab" id="t1" onclick="showTab('cases')">All detected cases</div>
-    <div class="tab" id="t2" onclick="showTab('memory')">How the memory learns</div>
+<div class="wrap">
+  <div class="tabs" role="tablist" aria-label="Views">
+    <button class="tab" role="tab" id="t0" aria-selected="true" aria-controls="sec-catch" onclick="showTab('catch')">
+      <svg class="ico" aria-hidden="true"><use href="#i-activity"/></svg>Daily monitor</button>
+    <button class="tab" role="tab" id="t1" aria-selected="false" aria-controls="sec-cases" tabindex="-1" onclick="showTab('cases')">
+      <svg class="ico" aria-hidden="true"><use href="#i-layers"/></svg>All detected cases</button>
+    <button class="tab" role="tab" id="t2" aria-selected="false" aria-controls="sec-memory" tabindex="-1" onclick="showTab('memory')">
+      <svg class="ico" aria-hidden="true"><use href="#i-database"/></svg>How the memory learns</button>
   </div>
 
   <!-- ===================== DAILY CATCH ===================== -->
-  <section id="sec-catch">
+  <section id="sec-catch" role="tabpanel" aria-labelledby="t0" tabindex="-1">
     <div class="explainer">
       <b>Trading never stops — so neither does the agent.</b> A scheduled job (an AWS Lambda on a daily
       timer) scans each day's <b>new</b> trades, detects fresh rings, and — the key part — ranks them by how
@@ -162,11 +504,26 @@
       <div class="pipe">daily blocks → <span>ring detection</span> → <span>AWS Bedrock</span> embed →
       <span>CockroachDB</span> vector-match vs confirmed memory → prioritized worklist</div>
     </div>
+
+    <div class="board" id="board" hidden>
+      <div class="panel">
+        <div class="phead"><svg class="ico" aria-hidden="true"><use href="#i-activity"/></svg>
+          Detections by day
+          <span class="leg" aria-hidden="true">
+            <span><i style="background:#E05650"></i>high</span>
+            <span><i style="background:#E6B347"></i>elevated</span>
+            <span><i style="background:#8792A8"></i>low</span>
+          </span></div>
+        <div class="chartwrap"><svg id="dayChart"></svg><div id="chartTip"></div></div>
+      </div>
+      <div class="tiles" id="kpiTiles"></div>
+    </div>
+
     <div id="catchList"></div>
   </section>
 
   <!-- ===================== CASES ===================== -->
-  <section id="sec-cases" hidden>
+  <section id="sec-cases" role="tabpanel" aria-labelledby="t1" tabindex="-1" hidden>
     <div class="explainer">
       <b>What this is.</b> I pulled every LooksRare trade from 2022, built a graph of who-traded-with-whom,
       and searched for <b>closed loops</b> — clusters of wallets that keep selling the same NFTs back to each
@@ -177,149 +534,424 @@
     </div>
     <div class="cases">
       <div class="caselist" id="caselist"></div>
-      <div class="detail" id="detail"><div class="placeholder">← pick a case to see who did what</div></div>
+      <div class="detail" id="detail">
+        <div class="placeholder"><svg class="ico" aria-hidden="true"><use href="#i-pointer"/></svg>
+        Pick a case to see who did what</div>
+      </div>
     </div>
   </section>
 
   <!-- ===================== MEMORY ===================== -->
-  <section id="sec-memory" hidden>
+  <section id="sec-memory" role="tabpanel" aria-labelledby="t2" tabindex="-1" hidden>
     <div class="explainer">
       <b>Why a memory?</b> Real surveillance teams ask, after every incident, <i>"what should we have caught
       sooner?"</i> This agent turns each confirmed case into a searchable memory in CockroachDB. New activity is
       compared against that memory by meaning (AWS Bedrock embeddings + vector search), so the agent gets
       <b>sharper with every verdict</b>. The 3-minute story below shows it happening — just press
-      <b>Next&nbsp;▸</b> and read.
+      <b>Next</b> and read.
     </div>
 
     <div class="story">
-      <div class="progress" id="progress"></div>
+      <div class="shelf">
+        <div class="phead"><svg class="ico" aria-hidden="true"><use href="#i-database"/></svg>
+          Agent memory — durable rows in CockroachDB, shared by every instance
+          <span class="cnt"><b id="shC">–</b> confirmed · <b id="shR">–</b> known false-positives</span></div>
+        <div class="cells" id="shelfCells" aria-hidden="true"></div>
+      </div>
+      <div class="steps" id="progress" role="progressbar" aria-label="Story progress"
+           aria-valuemin="0" aria-valuemax="6" aria-valuenow="0"></div>
       <div class="narr" id="narr"></div>
-      <div class="actbox"><div class="t">Activity being checked</div><span id="activityShow"></span></div>
+      <div class="actbox"><div class="t eyebrow">Activity being checked</div><span id="activityShow"></span></div>
 
-      <div class="result" id="result">
+      <div class="result" id="result" aria-live="polite">
         <span id="verdict" class="verdict"></span>
+        <div id="meterBox"></div>
         <div id="precConfirmed"></div>
         <div id="precRejected"></div>
-        <div class="explain" id="explainBox" hidden><div class="t">Plain-language rationale (AWS Bedrock · Claude)</div><div id="explain"></div></div>
+        <div class="explain" id="explainBox" hidden><div class="t eyebrow" id="explainLbl">Plain-language rationale (AWS Bedrock)</div><div id="explain"></div></div>
       </div>
       <div class="after" id="after"></div>
-      <div class="spin" id="spin">embedding via Bedrock · vector search on CockroachDB…</div>
+      <div class="spin" id="spin"><span class="spinner"></span>embedding via Bedrock · vector search on CockroachDB…</div>
 
       <div class="storybtns">
-        <button id="nextBtn" onclick="nextStep()">Next ▸</button>
-        <button class="ghost" onclick="restartStory()">↺ Restart story</button>
+        <button class="btn" id="nextBtn" onclick="nextStep()">Next <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="btn ghost" onclick="restartStory()"><svg class="ico" aria-hidden="true"><use href="#i-undo"/></svg>Restart story</button>
       </div>
 
       <div class="free">
-        Advanced: try your own description —
+        <label for="freeAct">Advanced: try your own description</label>
         <textarea id="freeAct" placeholder="e.g. five wallets kept re-selling the same token to each other for weeks…"></textarea>
-        <div class="storybtns"><button class="ghost" onclick="freeTriage()">Triage this ▸</button></div>
+        <div class="storybtns"><button class="btn ghost" onclick="freeTriage()">Triage this <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
       </div>
     </div>
   </section>
+</div>
 
-  <div id="modal" class="modal" onclick="closeModal(event)">
-    <div class="modbox">
-      <div id="modalX" class="modx" onclick="closeModal()">×</div>
-      <div id="modalBody"></div>
-    </div>
+<div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" onclick="closeModal(event)">
+  <div class="modbox">
+    <h2 id="modalTitle" class="sr">Case evidence</h2>
+    <button id="modalX" class="modx" aria-label="Close evidence dialog" onclick="closeModal()">
+      <svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></button>
+    <div id="modalBody"></div>
   </div>
 </div>
 
 <script>
-const short=w=>w.slice(0,6)+'…'+w.slice(-4);
-function setStats(s){mConf.textContent=s.confirmed??0;mRej.textContent=s.rejected??0;}
-async function getJSON(u){return (await fetch(u)).json();}
-async function postJSON(u,b){return (await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):null})).json();}
-async function refresh(){setStats(await getJSON('/api/stats'));}
-const sec_catch=document.getElementById('sec-catch'), sec_cases=document.getElementById('sec-cases'), sec_memory=document.getElementById('sec-memory');
-function showTab(w){
-  sec_catch.hidden=w!=='catch'; sec_cases.hidden=w!=='cases'; sec_memory.hidden=w!=='memory';
-  t0.classList.toggle('on',w==='catch'); t1.classList.toggle('on',w==='cases'); t2.classList.toggle('on',w==='memory');
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const ic = n => `<svg class="ico" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const short = w => w.slice(0,6)+'…'+w.slice(-4);
+
+/* ---- animated counter: memory is the product, so make it land ---- */
+function countTo(el, to){
+  const from = parseInt(el.dataset.v || '0', 10) || 0;
+  el.dataset.v = to;
+  if (REDUCED || from === to){ el.textContent = to; return; }
+  const t0 = performance.now(), dur = 460;
+  requestAnimationFrame(function tick(t){
+    const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(from + (to - from) * e);
+    if (p < 1) requestAnimationFrame(tick);
+  });
 }
+/* ---- memory shelf: one square per remembered pattern ---- */
+let shelfPrev = {c:-1, r:-1};
+function renderShelf(c, r){
+  const cellsEl = document.getElementById('shelfCells');
+  if(!cellsEl) return;
+  shC.textContent = c; shR.textContent = r;
+  const CAP = 74, grewC = shelfPrev.c >= 0 && c > shelfPrev.c, grewR = shelfPrev.r >= 0 && r > shelfPrev.r;
+  const nC = Math.min(c, CAP), over = c - nC;
+  let h = '';
+  for(let i = 0; i < nC; i++)
+    h += `<span class="cell${grewC && i === nC-1 ? ' new' : ''}"></span>`;
+  if(over > 0) h += `<span class="cell more">+${over}</span>`;
+  for(let i = 0; i < r; i++)
+    h += `<span class="cell rej${grewR && i === r-1 ? ' new' : ''}"></span>`;
+  cellsEl.innerHTML = h;
+  shelfPrev = {c, r};
+}
+function setStats(s){
+  countTo(mConf, s.confirmed ?? 0); countTo(mRej, s.rejected ?? 0);
+  renderShelf(s.confirmed ?? 0, s.rejected ?? 0);
+}
+
+async function getJSON(u){
+  const r = await fetch(u);
+  if(!r.ok) throw new Error(`${u} → ${r.status} ${r.statusText}`);
+  return r.json();
+}
+async function postJSON(u,b){
+  const r = await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):null});
+  if(!r.ok) throw new Error(`${u} → ${r.status} ${r.statusText}`);
+  return r.json();
+}
+async function refresh(){ try{ setStats(await getJSON('/api/stats')); }catch(e){ console.error(e); } }
+
+function errorHTML(title, err, retry){
+  return `<div class="errbox">${ic('alert')}<div><div class="t">${esc(title)}</div>
+    <div class="d">${esc(err.message||err)}</div>
+    <button class="btn ghost" onclick="${retry}">${ic('undo')}Retry</button></div></div>`;
+}
+function skeleton(n){
+  return Array.from({length:n},()=>`<div class="skrow">
+    <div class="sk" style="width:60px;height:52px"></div>
+    <div><div class="sk" style="width:42%;height:11px"></div>
+    <div class="sk" style="width:66%;height:9px;margin-top:8px"></div></div>
+    <div class="sk" style="width:104px;height:9px"></div></div>`).join('');
+}
+
+/* ================= TABS ================= */
+const PANELS = {catch:'sec-catch', cases:'sec-cases', memory:'sec-memory'};
+const TABIDS = {catch:'t0', cases:'t1', memory:'t2'};
+function showTab(w){
+  for (const [k,id] of Object.entries(PANELS)) document.getElementById(id).hidden = (k !== w);
+  for (const [k,id] of Object.entries(TABIDS)){
+    const t = document.getElementById(id), on = (k === w);
+    t.setAttribute('aria-selected', on ? 'true' : 'false');
+    t.tabIndex = on ? 0 : -1;
+  }
+}
+(function tabKeys(){
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  document.querySelector('[role="tablist"]').addEventListener('keydown', e => {
+    const i = tabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    const map = {ArrowRight:i+1, ArrowLeft:i-1, Home:0, End:tabs.length-1};
+    if (!(e.key in map)) return;
+    e.preventDefault();
+    const n = tabs[(map[e.key] + tabs.length) % tabs.length];
+    n.focus(); n.click();
+  });
+})();
+
+/* ================= SITUATION BOARD ================= */
+/* Status ramp for severity bands. Chart steps of the system's severity colors,
+   tuned so adjacent stacked segments stay apart under CVD (validated: deutan
+   dE 16.4, normal dE 21.8, contrast >=3:1 on --surface). Identity never rides on
+   color alone: fixed stack order (high at baseline), 2px surface gaps, direct
+   labels, text legend. */
+const CHART_C = {high:'#E05650', elevated:'#E6B347', low:'#8792A8'};
+const BAND_ORDER = ['high','elevated','low'];
+let BOARD = null;
+
+function buildBoard(rows){
+  if(!rows.length) return;
+  const byDate = {};
+  rows.forEach(c => {
+    const g = byDate[c.date] ??= {high:0, elevated:0, low:0, total:0, wallets:0, trades:0, matched:0};
+    g[c.suspicion.band]++; g.total++;
+    g.wallets += c.n_wallets; g.trades += c.n_trades;
+    if(c.nearest_confirmed) g.matched++;
+  });
+  const dates = Object.keys(byDate).sort();
+  BOARD = {dates, byDate};
+  const latest = dates[dates.length-1], L = byDate[latest];
+  document.getElementById('kpiTiles').innerHTML = `
+    <div class="tile hot"><span class="k">New rings · ${latest}</span>
+      <span class="v">${L.total}</span><span class="d">${L.high} at high suspicion</span></div>
+    <div class="tile"><span class="k">Matched to memory</span>
+      <span class="v">${L.matched}<small>/${L.total}</small></span>
+      <span class="d">resemble a confirmed case</span></div>
+    <div class="tile"><span class="k">Wallets implicated</span>
+      <span class="v">${L.wallets}</span><span class="d">in the latest run</span></div>
+    <div class="tile"><span class="k">Self-trades flagged</span>
+      <span class="v">${L.trades.toLocaleString()}</span>
+      <span class="d">circular sales — never a new owner</span></div>`;
+  drawDayChart(dates, byDate);
+  board.hidden = false;
+}
+
+function drawDayChart(dates, byDate){
+  const W = 640, H = 252, mL = 30, mR = 8, mT = 22, mB = 30;
+  const pw = W - mL - mR, ph = H - mT - mB;
+  const yMax = Math.max(2, Math.ceil(Math.max(...dates.map(d => byDate[d].total)) / 2) * 2);
+  const y = v => mT + ph - (v / yMax) * ph;
+  const slot = pw / dates.length, bw = Math.min(46, slot * .5);
+  const topRect = (x, yy, w, h, r) => h <= 0 ? '' :
+    `M${x},${yy+h}V${yy+r}Q${x},${yy} ${x+r},${yy}H${x+w-r}Q${x+w},${yy} ${x+w},${yy+r}V${yy+h}Z`;
+  let s = '';
+  /* recessive grid + y labels */
+  for(let v = 0; v <= yMax; v += yMax / 2){
+    s += `<line x1="${mL}" x2="${W-mR}" y1="${y(v)}" y2="${y(v)}" stroke="#23262C" stroke-width="1"/>`;
+    s += `<text x="${mL-8}" y="${y(v)+3.5}" fill="#7C828B" font-size="10" text-anchor="end" font-family="Geist Mono, ui-monospace, monospace">${v}</text>`;
+  }
+  dates.forEach((d, i) => {
+    const g = byDate[d], cx = mL + slot * i + slot / 2, x = cx - bw / 2, last = i === dates.length - 1;
+    let acc = 0, seg = '';
+    const bands = BAND_ORDER.filter(b => g[b] > 0);
+    bands.forEach((b, bi) => {
+      const h0 = (g[b] / yMax) * ph, gap = bi > 0 ? 2 : 0;
+      const yTop = y(acc + g[b]), hh = Math.max(1, h0 - gap);
+      seg += bi === bands.length - 1
+        ? `<path d="${topRect(x, yTop, bw, hh, 4)}" fill="${CHART_C[b]}"/>`
+        : `<rect x="${x}" y="${yTop}" width="${bw}" height="${hh}" fill="${CHART_C[b]}"/>`;
+      acc += g[b];
+    });
+    s += `<g data-g="${d}">${seg}
+      <text x="${cx}" y="${y(g.total)-7}" fill="#E9EAEC" font-size="12" text-anchor="middle" font-family="Geist Mono, ui-monospace, monospace">${g.total}</text>
+      <text x="${cx}" y="${H-9}" fill="${last?'#E9EAEC':'#7C828B'}" font-size="10" text-anchor="middle" font-family="Geist Mono, ui-monospace, monospace">${d.slice(5)}</text>
+      ${last?`<circle cx="${cx-22}" cy="${H-12.5}" r="2.5" fill="#E05650" class="cpulse"/>`:''}</g>`;
+  });
+  /* hover hits on top */
+  dates.forEach((d, i) => {
+    s += `<rect class="hit" data-date="${d}" x="${mL + slot*i}" y="${mT}" width="${slot}" height="${ph}" fill="transparent"/>`;
+  });
+  const svg = document.getElementById('dayChart');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', 'Suspected rings detected per day: '
+    + dates.map(d => `${d}: ${byDate[d].total} (${byDate[d].high} high)`).join(', '));
+  svg.innerHTML = s;
+  const tip = document.getElementById('chartTip'), wrap = svg.parentElement;
+  svg.addEventListener('mousemove', e => {
+    const hit = e.target.closest('.hit');
+    if(!hit){ tip.style.display = 'none'; dim(null); return; }
+    const d = hit.dataset.date, g = byDate[d];
+    tip.innerHTML = `<b>${d}</b> · <b>${g.total}</b> suspected ring(s)<br>` +
+      `high <b>${g.high}</b> · elevated <b>${g.elevated}</b> · low <b>${g.low}</b><br>` +
+      `<b>${g.wallets}</b> wallets · <b>${g.matched}/${g.total}</b> matched memory`;
+    tip.style.display = 'block';
+    const r = wrap.getBoundingClientRect();
+    const tx = Math.min(e.clientX - r.left + 14, r.width - tip.offsetWidth - 4);
+    tip.style.left = Math.max(0, tx) + 'px';
+    tip.style.top = (e.clientY - r.top - tip.offsetHeight - 12) + 'px';
+    dim(d);
+  });
+  svg.addEventListener('mouseleave', () => { tip.style.display = 'none'; dim(null); });
+  svg.addEventListener('click', e => {
+    const hit = e.target.closest('.hit'); if(!hit) return;
+    document.getElementById('run-' + hit.dataset.date)
+      ?.scrollIntoView({behavior: REDUCED ? 'auto' : 'smooth', block: 'start'});
+  });
+  function dim(d){
+    svg.querySelectorAll('g[data-g]').forEach(g =>
+      g.style.opacity = (d && g.dataset.g !== d) ? .45 : 1);
+  }
+}
+
+/* ================= DAILY CATCH ================= */
 let CATCH=[];
+const BAND = {high:['sb-high','HIGH','alert'], elevated:['sb-elev','ELEVATED','spark']};
+function suspHTML(s){
+  const [cls,label,icon] = BAND[s.band] || ['','LOW','check'];
+  return `<div class="susp ${cls}"><div class="ssc">${s.score}</div>
+    <div class="ssl">${ic(icon)}${label}</div></div>`;
+}
 async function loadCatch(){
-  CATCH=(await getJSON('/api/catch')).catches;
-  if(!CATCH.length){catchList.innerHTML='<div class="placeholder">No daily runs yet. Run <code>python -m src.daily_run --date YYYY-MM-DD</code>.</div>';return;}
+  catchList.innerHTML = skeleton(3);
+  try{
+    CATCH = (await getJSON('/api/catch')).catches;
+  }catch(e){
+    catchList.innerHTML = errorHTML("Couldn't load the daily worklist.", e, 'loadCatch()');
+    return;
+  }
+  if(!CATCH.length){
+    catchList.innerHTML = `<div class="placeholder">${ic('inbox')}
+      <div>No daily runs yet. Run <code>python -m src.daily_run --date YYYY-MM-DD</code>.</div></div>`;
+    return;
+  }
+  buildBoard(CATCH);
   const counts={}; CATCH.forEach(c=>counts[c.date]=(counts[c.date]||0)+1);
   let html='', cur=null, di=-1;
   CATCH.forEach((c,i)=>{
     if(c.date!==cur){ if(cur!==null)html+='</div>'; cur=c.date; di++;
-      html+=`<div class="run"><div class="runhdr">${di===0?'🔴 Latest run · ':''}${c.date} — <b>${counts[c.date]}</b> new suspected ring(s)</div>`; }
-    const s=c.suspicion, hot=s.band==='high', bc=s.band==='high'?'sb-high':s.band==='elevated'?'sb-elev':'sb-low';
+      html+=`<div class="run" id="run-${c.date}"><div class="runhdr">${di===0?'<span class="live"></span>Latest run · ':''}<span class="d">${c.date}</span>
+        <span class="n"><b>${counts[c.date]}</b> new suspected ring(s)</span></div>`; }
+    const s=c.suspicion;
     const match=c.nearest_confirmed?`resembles confirmed <b>${c.nearest_confirmed}</b> · dist ${c.nearest_distance}`:'no memory match';
-    html+=`<div class="catch ${hot?'hot':''}" onclick="openCatch(${i})">
-      <div class="susp ${bc}"><div class="ssc">${s.score}</div><div class="ssl">suspicion</div></div>
-      <div class="cinfo"><b>${c.case_id}</b> · ${c.n_wallets} wallets · ${c.n_trades} self-trades${c.has_high_confidence?' · <span class="hcx">same-NFT loop</span>':''}
+    html+=`<button class="catch rise" style="--i:${i}" onclick="openCatch(${i})"
+        aria-label="Open evidence for ring ${c.case_id}, suspicion ${s.score}, ${s.band}">
+      ${suspHTML(s)}
+      <div class="cinfo"><span class="id">${c.case_id}</span> <span class="meta">· ${c.n_wallets} wallets · ${c.n_trades} self-trades${c.has_high_confidence?` · <span class="loop">${ic('repeat')}same-NFT loop</span>`:''}</span>
         <div class="sfac">${s.factors.join(' · ')||'—'}</div></div>
-      <span class="match">${match}</span><span class="chev">›</span></div>`;
+      <span class="match">${match}</span><span class="chev">${ic('chev')}</span></button>`;
   });
   html+='</div>'; catchList.innerHTML=html;
 }
+let lastFocus=null;
 async function openCatch(i){
   const c=CATCH[i], s=c.suspicion;
-  const bc=s.band==='high'?'sb-high':s.band==='elevated'?'sb-elev':'sb-low';
   const match=c.nearest_confirmed?`resembles confirmed <b>${c.nearest_confirmed}</b> · distance ${c.nearest_distance}`:'no memory match';
-  modalBody.innerHTML='<div class="modspin">loading evidence…</div>';
-  modal.style.display='flex';
-  const d=await getJSON('/api/case/'+c.case_id);
-  modalBody.innerHTML=`<div class="whybox"><div class="susp ${bc}"><div class="ssc">${s.score}</div><div class="ssl">suspicion</div></div>
-    <div><div class="whyt">Why this was flagged</div><div class="whyf">${s.factors.join(' · ')} · ${match}</div></div></div>`+caseDetailHTML(d);
+  lastFocus=document.activeElement;
+  modalTitle.textContent=`Evidence for case ${c.case_id}`;
+  modalBody.innerHTML=`<div class="placeholder">${ic('database')}Loading evidence…</div>`;
+  modal.classList.add('on'); document.body.style.overflow='hidden'; modalX.focus();
+  try{
+    const d=await getJSON('/api/case/'+c.case_id);
+    modalBody.innerHTML=`<div class="whybox">${suspHTML(s)}
+      <div><div class="whyt eyebrow">Why this was flagged</div>
+      <div class="whyf">${s.factors.join(' · ')} · ${match}</div></div></div>`+caseDetailHTML(d);
+  }catch(e){
+    modalBody.innerHTML=errorHTML("Couldn't load this case.", e, `openCatch(${i})`);
+  }
 }
-function closeModal(e){ if(!e||e.target.id==='modal'||e.target.id==='modalX') modal.style.display='none'; }
+function closeModal(e){
+  if(e && e.target.id!=='modal') return;
+  modal.classList.remove('on'); document.body.style.overflow='';
+  if(lastFocus){ lastFocus.focus(); lastFocus=null; }
+}
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape' && modal.classList.contains('on')) closeModal();
+});
 
 /* ================= CASES ================= */
 let CASES=[];
 async function loadCases(){
-  CASES=await getJSON('/api/cases');
-  caselist.innerHTML=CASES.map((c,i)=>`<div class="ci" id="ci${i}" onclick="pickCase(${i})">
-    <div class="id">${c.case_id} ${c.has_high_confidence?'<span class="hc">● same-NFT loop</span>':''}</div>
-    <div class="m">${c.n_wallets} wallets · ${c.n_trades} self-trades</div></div>`).join('');
-  if(CASES.length)pickCase(0);
+  caselist.innerHTML=skeleton(3);
+  try{
+    CASES=await getJSON('/api/cases');
+  }catch(e){
+    caselist.innerHTML=errorHTML("Couldn't load the case list.", e, 'loadCases()');
+    return;
+  }
+  if(!CASES.length){
+    caselist.innerHTML=`<div class="placeholder">${ic('inbox')}No detected cases yet.</div>`;
+    return;
+  }
+  caselist.innerHTML=CASES.map((c,i)=>`<button class="ci" id="ci${i}" onclick="pickCase(${i})" aria-current="false"
+    aria-label="Case ${c.case_id}, ${c.n_wallets} wallets, ${c.n_trades} self-trades${c.has_high_confidence?', same-NFT loop':''}">
+    <span class="id">${c.case_id}${c.has_high_confidence?ic('repeat'):''}</span>
+    <span class="m">${c.n_wallets} wallets · ${c.n_trades} self-trades</span></button>`).join('');
+  pickCase(0);
 }
 async function pickCase(i){
-  document.querySelectorAll('.ci').forEach(e=>e.classList.remove('on'));
-  document.getElementById('ci'+i).classList.add('on');
-  renderDetail(await getJSON('/api/case/'+CASES[i].case_id));
+  document.querySelectorAll('.ci').forEach(e=>e.setAttribute('aria-current','false'));
+  document.getElementById('ci'+i).setAttribute('aria-current','true');
+  detail.innerHTML=`<div class="placeholder">${ic('database')}Loading case…</div>`;
+  try{
+    renderDetail(await getJSON('/api/case/'+CASES[i].case_id));
+  }catch(e){
+    detail.innerHTML=errorHTML("Couldn't load this case.", e, `pickCase(${i})`);
+  }
 }
+/* Big rings (247 wallets / 1875 edges) render as an illegible hairball and stall the
+   renderer, so draw the CORE of the ring — the heaviest traders and trade paths — and
+   state plainly what was left out. Never truncate silently. */
+const G_MAX_NODES=36, G_MAX_EDGES=120;
 function graphSVG(wallets,edges){
-  const W=560,H=420,cx=W/2,cy=H/2,R=Math.min(W,H)/2-60,nr=26,idx={};
-  wallets.forEach((w,i)=>idx[w]=i);
-  const pos=wallets.map((w,i)=>{const a=-Math.PI/2+i*2*Math.PI/wallets.length;return{x:cx+R*Math.cos(a),y:cy+R*Math.sin(a)};});
-  const maxC=Math.max(...edges.map(e=>e.count),1);let E='';
-  edges.forEach(e=>{const i=idx[e.source],j=idx[e.target];if(i==null||j==null||i===j)return;
+  const deg={};
+  edges.forEach(e=>{deg[e.source]=(deg[e.source]||0)+e.count;deg[e.target]=(deg[e.target]||0)+e.count;});
+  const keep=[...wallets].sort((a,b)=>(deg[b]||0)-(deg[a]||0)).slice(0,G_MAX_NODES);
+  const inKeep=new Set(keep);
+  const shown=edges.filter(e=>inKeep.has(e.source)&&inKeep.has(e.target)&&e.source!==e.target)
+                   .sort((a,b)=>b.count-a.count);
+  const drawn=shown.slice(0,G_MAX_EDGES);
+  const n=keep.length, W=560, H=n<=4?300:n<=8?380:440, cx=W/2, cy=H/2, R=Math.min(W,H)/2-46;
+  const nr=Math.max(9,Math.min(26,Math.floor(Math.PI*R/n)-3));
+  const chars=nr>=18?6:nr>=13?5:4, fs=nr>=18?10:nr>=13?9:7.5;
+  const idx={}; keep.forEach((w,i)=>idx[w]=i);
+  const pos=keep.map((w,i)=>{const a=-Math.PI/2+i*2*Math.PI/n;return{x:cx+R*Math.cos(a),y:cy+R*Math.sin(a)};});
+  const maxC=Math.max(...drawn.map(e=>e.count),1), labelEdges=drawn.length<=40;
+  let E='';
+  drawn.forEach(e=>{const i=idx[e.source],j=idx[e.target];if(i==null||j==null||i===j)return;
     const a=pos[i],b=pos[j],dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;
-    const sx=a.x+ux*nr,sy=a.y+uy*nr,ex=b.x-ux*nr,ey=b.y-uy*nr,off=28,mx=(sx+ex)/2-uy*off,my=(sy+ey)/2+ux*off;
-    E+=`<path d="M${sx.toFixed(1)},${sy.toFixed(1)} Q${mx.toFixed(1)},${my.toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}" fill="none" stroke="#ff6b6b" stroke-opacity=".5" stroke-width="${(1.5+5*e.count/maxC).toFixed(1)}" marker-end="url(#arw)"/>`;
-    E+=`<text x="${mx.toFixed(1)}" y="${my.toFixed(1)}" fill="#ffb0b0" font-size="11" text-anchor="middle">${e.count}</text>`;});
-  let N='';wallets.forEach((w,i)=>{const p=pos[i];
-    N+=`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${nr}" fill="#1b2230" stroke="#5b9dff" stroke-width="2"/>`;
-    N+=`<text x="${p.x.toFixed(1)}" y="${(p.y+4).toFixed(1)}" fill="#e6edf3" font-size="10" text-anchor="middle" font-family="monospace">${w.slice(0,6)}</text>`;});
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%"><defs><marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3 L0,6 Z" fill="#ff6b6b" fill-opacity=".75"/></marker></defs>${E}${N}</svg>`;
+    const sx=a.x+ux*nr,sy=a.y+uy*nr,ex=b.x-ux*nr,ey=b.y-uy*nr,off=Math.min(28,L*.14),
+          mx=(sx+ex)/2-uy*off,my=(sy+ey)/2+ux*off;
+    E+=`<path d="M${sx.toFixed(1)},${sy.toFixed(1)} Q${mx.toFixed(1)},${my.toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}" fill="none" stroke="#E05650" stroke-opacity="${labelEdges?.55:.3}" stroke-width="${(1+3.5*e.count/maxC).toFixed(1)}" marker-end="url(#arw)"/>`;
+    if(labelEdges)E+=`<text x="${mx.toFixed(1)}" y="${my.toFixed(1)}" fill="#E8938F" font-size="11" text-anchor="middle" font-family="Geist Mono, ui-monospace, monospace">${e.count}</text>`;});
+  let N='';keep.forEach((w,i)=>{const p=pos[i];
+    N+=`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${nr}" fill="#1D2026" stroke="#31353D" stroke-width="1.5"/>`;
+    N+=`<text x="${p.x.toFixed(1)}" y="${(p.y+fs*.35).toFixed(1)}" fill="#B3B8C0" font-size="${fs}" text-anchor="middle" font-family="Geist Mono, ui-monospace, monospace">${w.slice(2,2+chars)}</text>`;});
+  const cut=[];
+  if(wallets.length>n)cut.push(`showing the <b>${n}</b> busiest of <b>${wallets.length}</b> wallets`);
+  if(shown.length>drawn.length)cut.push(`the <b>${drawn.length}</b> heaviest of <b>${shown.length}</b> trade paths between them`);
+  return {
+    svg:`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Ring graph: ${n} wallets shown of ${wallets.length}, with the trades circulating between them"><defs><marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3 L0,6 Z" fill="#E05650" fill-opacity=".8"/></marker></defs>${E}${N}</svg>`,
+    note:cut.length?`This ring is too large to draw in full — ${cut.join(', and ')}.`:''
+  };
 }
 function renderDetail(d){ detail.innerHTML=caseDetailHTML(d); }
 function caseDetailHTML(d){
   const s=d.summary,t=d.recirculated_tokens,top=t[0];
-  const finding=`I flagged <b>${s.n_wallets} wallets</b> that traded <b>${s.n_trades} times</b> among <i>themselves</i> over ${s.active_days} days`
+  const subDay=s.active_days<1;             /* same-day rings otherwise read "over 0 days" */
+  const daysTile=subDay?'&lt;1':s.active_days;
+  const finding=`I flagged <b>${s.n_wallets} wallets</b> that traded <b>${s.n_trades} times</b> among <i>themselves</i> ${subDay?'within a single day':`over ${s.active_days} days`}`
     + (top?`, and it was the same few NFTs going in circles — token <b>#${top.token_id}</b> alone came back to this group <b>${top.times} times</b>. `:'. ')
     + `Since ownership never actually left the cluster, this volume is fake. ${s.has_high_confidence?'The same-NFT loop makes it near-irrefutable.':''}`;
   const toks=t.map(x=>`<tr><td>#${x.token_id}</td><td>${x.times}×</td></tr>`).join('');
-  const wl=d.wallets.map(w=>`<a href="https://etherscan.io/address/${w}" target="_blank">${w}</a>`).join('');
+  /* a 247-wallet ring would otherwise stack into a 6,000px wall of links */
+  const chip=w=>`<a href="https://etherscan.io/address/${w}" target="_blank" rel="noopener noreferrer">${w}${ic('link')}</a>`;
+  const HEAD=24, rest=d.wallets.slice(HEAD);
+  const wl=`<div class="wl">${d.wallets.slice(0,HEAD).map(chip).join('')}</div>`
+    + (rest.length?`<details class="more"><summary>${ic('chev')}Show the remaining ${rest.length} wallets</summary>
+        <div class="wl">${rest.map(chip).join('')}</div></details>`:'');
+  const g=graphSVG(d.wallets,d.edges);
   return `
-    <h2>Case ${s.case_id} ${s.has_high_confidence?'<span class="badge hc">same-NFT loop ✓</span>':''}</h2>
-    <div class="finding">⚠️ ${finding}</div>
+    <h2>Case <span class="cid">${s.case_id}</span> ${s.has_high_confidence?`<span class="badge">${ic('repeat')}same-NFT loop</span>`:''}</h2>
+    <div class="finding">${ic('alert')}<div>${finding}</div></div>
     <div class="nums">
       <div><b>${s.n_wallets}</b><span>wallets</span></div>
       <div><b>${s.n_trades}</b><span>self-trades</span></div>
-      <div><b>${s.active_days}</b><span>days active</span></div>
+      <div><b>${daysTile}</b><span>days active</span></div>
       <div><b>${Math.round(s.total_eth).toLocaleString()}</b><span>ETH volume*</span></div>
     </div>
     <div class="legend"><span><b>●</b> wallet</span><span><b>→</b> sold to</span><span><b>7</b> = number of times</span></div>
-    <div class="graph">${graphSVG(d.wallets,d.edges)}</div>
-    <p class="cap">Follow the arrows: the NFTs circle back among the same wallets instead of reaching new owners.</p>
-    ${t.length?`<div class="evi smoking"><div class="t">⚑ The smoking gun — the SAME NFT, resold over and over inside this group</div>
+    <div class="graph">${g.svg}</div>
+    <p class="cap">Follow the arrows: the NFTs circle back among the same wallets instead of reaching new owners.${g.note?` <span class="trunc">${g.note}</span>`:''}</p>
+    ${t.length?`<div class="evi smoking"><div class="t">${ic('flag')}The smoking gun — the SAME NFT, resold over and over inside this group</div>
       <div class="lead">A real sale changes ownership. These didn't:</div><table>${toks}</table></div>`:''}
-    <div class="evi"><div class="t">Member wallets — verify any of them on Etherscan</div><div class="wl">${wl}</div></div>
+    <div class="evi"><div class="t">${ic('link')}Member wallets — verify any of them on Etherscan</div>${wl}</div>
     <p class="foot">* ETH volume can be inflated by trading-reward farming (LooksRare LOOKS, Blur bidding);
     the trade count and same-NFT loops are the real signal, not the dollar figure.</p>`;
 }
@@ -337,17 +969,67 @@ const STORY=[
   {narr:"…but an analyst checks and it's <b>harmless</b> (a fee-rebate promo). They <b>reject</b> it, and the agent remembers this is fine.", act:BENIGN_V1, action:"reject"},
   {narr:"Next week, <b>similar benign activity</b> appears, worded differently. Because the agent remembers the rejection, it should now <b>stay quiet</b>.", act:BENIGN_V2, action:"triage", kind:"benign2"},
 ];
+const STEP_TITLES=["A new scheme arrives","Analyst confirms it","Same crooks, reworded",
+                   "Busy but benign","Analyst rejects it","Benign noise returns"];
 let step=0, dScheme1=null, dBenign1=null;
-const VMAP={flag:['FLAG','v-flag','⚑'],suppress:['SUPPRESS','v-suppress','⊘'],novel:['NOVEL','v-novel','◈']};
+const VMAP={flag:['FLAG','v-flag','flag'],suppress:['SUPPRESS','v-suppress','ban'],novel:['NOVEL','v-novel','spark']};
 
-function renderProgress(){progress.innerHTML=STORY.map((_,i)=>`<div class="dot ${i<step?'done':i===step?'cur':''}"></div>`).join('');}
-function showResult(r){
-  const [txt,cls,ic]=VMAP[r.verdict]||['?','v-novel','?'];
-  verdict.className='verdict '+cls;verdict.textContent=ic+' '+txt;
+function renderProgress(){
+  progress.innerHTML=STORY.map((_,i)=>`<div class="stp ${i<step?'done':i===step?'cur':''}">
+    <span class="n">${i+1}</span><span>${STEP_TITLES[i]}</span></div>`).join('');
+  progress.setAttribute('aria-valuenow', step);
+}
+
+/* ---- distance meter: where this activity landed relative to memory ----
+   Scale is cosine distance 0..1. Flag threshold 0.60 and the 0.48 / 0.86
+   anchors come from src/feedback_loop.py — measured, not invented. */
+function meterHTML(nc, nr, prevD){
+  if(!nc && !nr) return '';
+  const P = d => (Math.min(1, Math.max(0, d)) * 100).toFixed(1) + '%';
+  let t = '';
+  t += `<div class="mzone" style="width:60%"></div>`;
+  let marks = '';
+  [[0,'0 · identical'],[.6,'0.60 · flag threshold'],[1,'1 · unrelated']].forEach(([v,l])=>{
+    marks += `<div class="mtick" style="left:${P(v)}"></div>
+              <div class="mticklbl" style="left:${P(v)};${v===0?'transform:none;':''}${v===1?'transform:translateX(-100%);':''}">${l}</div>`;
+  });
+  if(prevD != null)
+    marks += `<div class="mdot ghost" style="left:${P(prevD)}" title="before learning"></div>`;
+  if(nc){
+    marks += `<div class="mdot conf" style="left:${P(nc.distance)}"></div>
+              <div class="mlbl" style="left:${P(nc.distance)}">${nc.source_case ?? 'confirmed'} · ${nc.distance}</div>`;
+  }
+  if(nr){
+    marks += `<div class="mdot rej" style="left:${P(nr.distance)}"></div>
+              <div class="mlbl lo" style="left:${P(nr.distance)}">false-positive · ${nr.distance}</div>`;
+  }
+  let foot = `<span class="swatch" style="background:var(--signal)"></span>nearest confirmed case
+    &nbsp;·&nbsp; <span class="swatch" style="background:var(--mute)"></span>nearest known false-positive`;
+  if(prevD != null && nc)
+    foot += ` &nbsp;·&nbsp; dashed = this scheme before learning: <b>${prevD}</b> → <b>${nc.distance}</b>`;
+  foot += `<br>Calibrated on the 2022 data: a true wash-trade match lands near <b>0.48</b>; unrelated activity near <b>0.86</b>.`;
+  return `<div class="meter">
+    <div class="mhead"><span>Similarity to memory</span><span>cosine distance · lower = more alike</span></div>
+    <div class="mtrack"><div class="mbar">${t}</div>${marks}</div>
+    <div class="mfoot">${foot}</div></div>`;
+}
+function setVerdict(cls, icon, text){
+  verdict.className='verdict '+cls;
+  verdict.innerHTML=ic(icon)+esc(text);
+}
+function showResult(r, prevD){
+  const [txt,cls,icon]=VMAP[r.verdict]||['?','v-novel','spark'];
+  setVerdict(cls, icon, txt);
   const nc=r.nearest_confirmed,nr=r.nearest_rejected;
-  precConfirmed.innerHTML=nc?`<div class="prec confirmed"><div class="t">Closest confirmed case · ${nc.source_case} · similarity distance ${nc.distance}</div>${nc.description}</div>`:'';
-  precRejected.innerHTML=nr?`<div class="prec rejected"><div class="t">Closest known false-positive · distance ${nr.distance}</div>${nr.description}</div>`:'';
-  if(r.explanation){explainBox.hidden=false;explain.textContent=r.explanation;}else explainBox.hidden=true;
+  meterBox.innerHTML=meterHTML(nc, nr, prevD);
+  precConfirmed.innerHTML=nc?`<div class="prec confirmed"><div class="t eyebrow">Closest confirmed case · ${nc.source_case} · similarity distance ${nc.distance}</div>${nc.description}</div>`:'';
+  precRejected.innerHTML=nr?`<div class="prec rejected"><div class="t eyebrow">Closest known false-positive · distance ${nr.distance}</div>${nr.description}</div>`:'';
+  if(r.explanation){
+    explainBox.hidden=false; explain.textContent=r.explanation;
+    const m=r.explanation_model||'';
+    explainLbl.textContent='Plain-language rationale (AWS Bedrock · '
+      + (/anthropic\.claude/.test(m)?'Claude':/nova/.test(m)?'Amazon Nova':m||'Bedrock') + ')';
+  } else explainBox.hidden=true;
   result.style.display='block';
 }
 function afterText(kind,r){
@@ -359,40 +1041,48 @@ function afterText(kind,r){
   return '';
 }
 function afterConfirm(kind){
-  if(kind==='confirm')return `<b>✓ Learned.</b> Memory grew to <b id="cN"></b> confirmed patterns — permanently, in CockroachDB.`;
-  return `<b>✕ Learned as a known false-positive.</b> The agent will recognise activity like this and stay quiet.`;
+  if(kind==='confirm')return `<b>Learned.</b> Memory grew to <b id="cN"></b> confirmed patterns — permanently, in CockroachDB.`;
+  return `<b>Learned as a known false-positive.</b> The agent will recognise activity like this and stay quiet.`;
 }
 async function nextStep(){
   if(step>=STORY.length){restartStory();return;}
   const s=STORY[step];
   narr.innerHTML=s.narr; activityShow.textContent=s.act;
   result.style.display='none'; after.style.display='none';
-  nextBtn.disabled=true; spin.style.display='block';
+  nextBtn.disabled=true; spin.classList.add('on');
   try{
     let r;
-    if(s.action==='triage'){r=await postJSON('/api/triage',{activity:s.act}); showResult(r); after.innerHTML=afterText(s.kind,r);}
-    else if(s.action==='confirm'){r=await postJSON('/api/confirm',{activity:s.act}); verdict.className='verdict v-confirmed';verdict.textContent='✓ CONFIRMED — written to memory';result.style.display='block';precConfirmed.innerHTML='';precRejected.innerHTML='';explainBox.hidden=true; after.innerHTML=afterConfirm('confirm');}
-    else{r=await postJSON('/api/reject',{activity:s.act}); verdict.className='verdict v-rejected';verdict.textContent='✕ REJECTED — remembered as noise';result.style.display='block';precConfirmed.innerHTML='';precRejected.innerHTML='';explainBox.hidden=true; after.innerHTML=afterConfirm('reject');}
+    if(s.action==='triage'){r=await postJSON('/api/triage',{activity:s.act}); showResult(r, s.kind==='scheme2'?dScheme1:null); after.innerHTML=afterText(s.kind,r);}
+    else if(s.action==='confirm'){r=await postJSON('/api/confirm',{activity:s.act}); setVerdict('v-confirmed','check','CONFIRMED — written to memory');result.style.display='block';meterBox.innerHTML='';precConfirmed.innerHTML='';precRejected.innerHTML='';explainBox.hidden=true; after.innerHTML=afterConfirm('confirm');}
+    else{r=await postJSON('/api/reject',{activity:s.act}); setVerdict('v-rejected','ban','REJECTED — remembered as noise');result.style.display='block';meterBox.innerHTML='';precConfirmed.innerHTML='';precRejected.innerHTML='';explainBox.hidden=true; after.innerHTML=afterConfirm('reject');}
     if(r.stats){setStats(r.stats); const cN=document.getElementById('cN'); if(cN)cN.textContent=r.stats.confirmed;}
     after.style.display='block';
-  }finally{spin.style.display='none';nextBtn.disabled=false;}
-  step++; renderProgress();
-  nextBtn.textContent = step>=STORY.length ? '↺ Play again' : 'Next ▸';
+    step++; renderProgress();
+    nextBtn.innerHTML = step>=STORY.length ? `${ic('undo')}Play again` : `Next ${ic('arrow')}`;
+  }catch(e){
+    after.innerHTML=`<div class="errbox">${ic('alert')}<div><div class="t">This step couldn't reach the agent.</div>
+      <div class="d">${esc(e.message)}</div></div></div>`;
+    after.style.display='block';
+  }finally{spin.classList.remove('on');nextBtn.disabled=false;}
 }
 async function restartStory(){
-  await postJSON('/api/reset'); await refresh();
+  try{ await postJSON('/api/reset'); await refresh(); }catch(e){ console.error(e); }
   step=0; dScheme1=null; dBenign1=null; renderProgress();
-  narr.innerHTML="Press <b>Next ▸</b> to watch the agent's memory get smarter, one analyst verdict at a time.";
+  narr.innerHTML="Press <b>Next</b> to watch the agent's memory get smarter, one analyst verdict at a time.";
   activityShow.textContent="—"; result.style.display='none'; after.style.display='none';
-  nextBtn.textContent='Next ▸';
+  nextBtn.innerHTML=`Next ${ic('arrow')}`;
 }
 async function freeTriage(){
   const activity=freeAct.value.trim(); if(!activity)return;
-  spin.style.display='block'; result.style.display='none'; after.style.display='none';
+  spin.classList.add('on'); result.style.display='none'; after.style.display='none';
   try{const r=await postJSON('/api/triage',{activity}); showResult(r);
     after.innerHTML=`Nearest confirmed case: <b>${r.nearest_confirmed?r.nearest_confirmed.distance:'—'}</b> · verdict <b>${r.verdict.toUpperCase()}</b>. (Lower distance = more like a known ring.)`;
     after.style.display='block'; if(r.stats)setStats(r.stats);
-  }finally{spin.style.display='none';}
+  }catch(e){
+    after.innerHTML=`<div class="errbox">${ic('alert')}<div><div class="t">Triage failed.</div>
+      <div class="d">${esc(e.message)}</div></div></div>`;
+    after.style.display='block';
+  }finally{spin.classList.remove('on');}
 }
 
 refresh(); loadCatch(); loadCases(); restartStory();

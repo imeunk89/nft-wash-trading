@@ -56,7 +56,7 @@ def index() -> str:
 @app.post("/api/triage")
 def api_triage(a: Activity) -> dict:
     r = triage(a.activity)
-    explanation = None
+    explanation = explain_model = None
     if r["verdict"] == "flag" and r["nearest_confirmed"]:
         top = r["nearest_confirmed"]
         prompt = (
@@ -67,15 +67,16 @@ def api_triage(a: Activity) -> dict:
             "is suspicious and how it resembles the precedent."
         )
         try:
-            explanation = bedrock.explain(prompt)
-        except Exception as e:  # keep the UI clean if Claude access isn't ready
+            explanation, explain_model = bedrock.explain_verbose(prompt)
+        except Exception as e:  # keep the UI clean if Bedrock access isn't ready
             print(f"[explain] Bedrock error: {e}")
-            explanation = None
+            explanation = explain_model = None
     return {
         "verdict": r["verdict"],
         "nearest_confirmed": _match(r["nearest_confirmed"]),
         "nearest_rejected": _match(r["nearest_rejected"]),
         "explanation": explanation,
+        "explanation_model": explain_model,
         "stats": _stats(),
     }
 

@@ -11,7 +11,7 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
-.venv/
+.venv
 venv/
 env/
 .pytest_cache/
@@ -31,3 +31,6 @@ data/
 .idea/
 .vscode/
 *.swp
+
+# internal design working notes, not part of the deliverable
+.calm-design/
