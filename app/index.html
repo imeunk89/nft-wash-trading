@@ -777,11 +777,11 @@
   <!-- ===================== MEMORY ===================== -->
   <section id="sec-memory" role="tabpanel" aria-labelledby="t2" tabindex="-1" hidden>
     <div class="explainer">
-      <p><b>Why a memory?</b> Real surveillance teams ask, after every incident, <i>"what should we have caught
-      sooner?"</i> This agent turns each confirmed case into a searchable memory in CockroachDB. New activity is
-      compared against that memory by meaning (AWS Bedrock embeddings + vector search), so the agent gets
-      <b>sharper with every verdict</b>. The 3-minute story below shows it happening — just press
-      <b>Next</b> and read.</p>
+      <p><b>Why a memory?</b> Every confirmed case leaves a <b>case note</b> — an analyst's write-up of what
+      happened, in plain language. The problem: two analysts describe the same scheme in completely different
+      words, so keyword search can't connect them. This agent embeds each case note and indexes it in CockroachDB,
+      so notes are matched by <b>meaning, not wording</b> (AWS Bedrock embeddings + vector search) — and the memory
+      gets <b>sharper with every verdict</b>. The story below shows it happening — just press <b>Next</b> and read.</p>
     </div>
 
     <div class="story">
@@ -794,7 +794,7 @@
       <div class="steps" id="progress" role="progressbar" aria-label="Story progress"
            aria-valuemin="0" aria-valuemax="6" aria-valuenow="0"></div>
       <div class="narr" id="narr"></div>
-      <div class="actbox"><div class="t eyebrow">Activity being checked</div><span id="activityShow"></span></div>
+      <div class="actbox"><div class="t eyebrow">Case note being checked</div><span id="activityShow"></span></div>
 
       <div class="result" id="result" aria-live="polite">
         <span id="verdict" class="verdict"></span>
@@ -812,15 +812,15 @@
       </div>
 
       <div class="free">
-        <div class="freehd">Try it yourself</div>
-        <p class="freewhy">Describe some trading activity in <b>plain English</b> — no addresses, no code.
-          The agent embeds your sentence and searches its memory for the closest case it has already
-          seen, exactly as it does for real detections above. Click an example to load it, edit it,
-          then press <b>Triage this</b>.</p>
+        <div class="freehd">Write your own case note</div>
+        <p class="freewhy">Describe some trading activity in <b>your own words</b> — plain English, no addresses,
+          no code. The agent embeds your note and searches memory for the closest case it has already seen,
+          exactly as it does above. Try wording a known scheme differently and watch it still match.
+          Click an example to load it, edit it, then press <b>Check memory</b>.</p>
         <div class="egs" id="egs"></div>
-        <label for="freeAct">Activity to check</label>
+        <label for="freeAct">Your case note</label>
         <textarea id="freeAct" placeholder="e.g. five wallets kept re-selling the same token to each other for weeks…"></textarea>
-        <div class="storybtns"><button class="btn ghost" onclick="freeTriage()">Triage this <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
+        <div class="storybtns"><button class="btn ghost" onclick="freeTriage()">Check memory <svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
       </div>
     </div>
 
@@ -1382,12 +1382,12 @@ const SCHEME_V2="A sibling pair of wallets bankrolled from one common source pin
 const BENIGN_V1="One collector bought ten different NFTs from ten unrelated sellers during a marketplace fee-rebate promotion week.";
 const BENIGN_V2="A user purchased a batch of NFTs from many distinct sellers while trading-fee rebates were live.";
 const STORY=[
-  {narr:"The agent already remembers <b>37 confirmed wash-trading rings</b> from 2022. Now a <b>brand-new scheme it has never seen</b> arrives. Let's ask its memory what it looks like.", act:SCHEME_V1, action:"triage", kind:"scheme1"},
-  {narr:"An analyst reviews it and says: <b>yes, this is manipulation</b>. The agent writes this scheme into its <b>permanent memory</b> — a row in CockroachDB, shared by every agent instance.", act:SCHEME_V1, action:"confirm"},
-  {narr:"Days later the <b>same crooks return</b> — same trick, but described in completely different words. A naïve keyword filter would miss it. Watch the memory.", act:SCHEME_V2, action:"triage", kind:"scheme2"},
-  {narr:"Now the flip side — <b>precision</b>. A burst of buying looks busy, so the agent flags it…", act:BENIGN_V1, action:"triage", kind:"benign1"},
-  {narr:"…but an analyst checks and it's <b>harmless</b> (a fee-rebate promo). They <b>reject</b> it, and the agent remembers this is fine.", act:BENIGN_V1, action:"reject"},
-  {narr:"Next week, <b>similar benign activity</b> appears, worded differently. Because the agent remembers the rejection, it should now <b>stay quiet</b>.", act:BENIGN_V2, action:"triage", kind:"benign2"},
+  {narr:"An analyst writes up a <b>case note</b> on some new activity and asks the memory: have we seen anything like this? The agent already holds <b>37 confirmed cases</b> from 2022 — but this exact scheme is new.", act:SCHEME_V1, action:"triage", kind:"scheme1"},
+  {narr:"The analyst rules it <b>manipulation</b> — criteria met, precedent consistent. That verdict makes this case note <b>permanent memory</b>: a row in CockroachDB, shared by every agent instance.", act:SCHEME_V1, action:"confirm"},
+  {narr:"Days later, a <b>different analyst</b> writes up the same crooks — but in their own words (read the two notes: barely a shared term). <b>Keyword search would miss it.</b> Watch what meaning-based memory does.", act:SCHEME_V2, action:"triage", kind:"scheme2"},
+  {narr:"Now the flip side — <b>precision</b>. A note on a busy burst of buying comes in, and the agent flags it…", act:BENIGN_V1, action:"triage", kind:"benign1"},
+  {narr:"…but the analyst checks and it's <b>harmless</b> (a fee-rebate promo). They <b>reject</b> it — and that rejection is remembered too.", act:BENIGN_V1, action:"reject"},
+  {narr:"Next week a <b>similar note</b> arrives, worded differently. Because the rejection is in memory, the agent now <b>stays quiet</b> instead of crying wolf again.", act:BENIGN_V2, action:"triage", kind:"benign2"},
 ];
 const STEP_TITLES=["A new scheme arrives","Analyst confirms it","Same crooks, reworded",
                    "Busy but benign","Analyst rejects it","Benign noise returns"];
