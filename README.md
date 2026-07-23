@@ -144,7 +144,59 @@ Outputs land in `data/raw/` (raw pulls) and `data/processed/` (scored pairs, wal
 
 ## Architecture
 
-_(diagram to be added)_
+The point of the design: **the evidence and the memory live in the same database.** A ring is
+detected from trades, written as a case, embedded, and searched against every past verdict —
+without syncing a relational store to a separate vector store.
+
+```mermaid
+flowchart TB
+    subgraph ingest["1 · Ingest — public on-chain data only"]
+        A["Alchemy getNFTSales<br/>Ethereum NFT trades"]
+        E["Etherscan<br/>block ↔ time · wallet funding"]
+    end
+
+    subgraph detect["2 · Detect — Python"]
+        S["symmetric round-trip pairs"]
+        R["ring detection<br/>graph cycles · networkx"]
+        K["consolidate → collusion cases"]
+    end
+
+    subgraph crdb["3 · CockroachDB Cloud — evidence AND memory, one database"]
+        T[("nft_trades")]
+        CC[("collusion_cases")]
+        FP[("flagged_patterns<br/>VECTOR 1024<br/>⚡ distributed vector index")]
+        MCP["Cloud Managed MCP Server<br/>read-only select_query"]
+    end
+
+    subgraph aws["4 · AWS Bedrock"]
+        EMB["Titan Text Embeddings V2<br/>→ 1024-dim"]
+        LLM["LLM → plain-language rationale"]
+    end
+
+    subgraph agent["5 · Agent loop — FastAPI on Vercel"]
+        DR["daily run → today's catch"]
+        TR["triage — cosine search vs confirmed memory"]
+        AN["analyst — confirm / reject"]
+        ASK["Ask the memory — natural language → SQL"]
+    end
+
+    A --> T
+    A --> S --> R --> K --> CC
+    E --> S
+    CC -- "case note" --> EMB --> FP
+    DR --> R
+    DR --> TR
+    TR -- "cosine similarity" --> FP
+    TR --> LLM
+    AN -- "verdict written as a row" --> FP
+    ASK --> MCP --> T
+    FP -. "memory gets sharper with every verdict" .-> TR
+```
+
+**The loop that matters** is the dashed line: every analyst verdict becomes a row in
+`flagged_patterns`, so the next triage searches a larger, sharper memory — and because it is
+matched by embedding rather than keywords, the same scheme is caught even when it is described in
+completely different words.
 
 ## License
 
