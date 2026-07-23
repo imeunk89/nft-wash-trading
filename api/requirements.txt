@@ -1,0 +1,10 @@
+# Serverless function deps ONLY — the web app's import chain.
+# The pipeline scripts (pandas/networkx) are NOT needed to serve the demo, and
+# leaving them out keeps the Vercel bundle small and cold starts fast.
+# Full local setup still uses the root requirements.txt.
+fastapi>=0.110
+psycopg[binary]>=3.2
+boto3>=1.34
+requests>=2.31
+python-dotenv>=1.0
+certifi
