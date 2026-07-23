@@ -34,3 +34,15 @@ data/
 
 # internal design working notes, not part of the deliverable
 .calm-design/
+
+# recorded media / generated video assets (large, not part of the repo)
+*.mov
+*.mp4
+*.wav
+*.mp3
+video_build/
+
+# stray local working files (not part of the deliverable)
+_to_delete/
+s3opt_*.jpg
+s3opts.png
