@@ -149,49 +149,28 @@ detected from trades, written as a case, embedded, and searched against every pa
 without syncing a relational store to a separate vector store.
 
 ```mermaid
-flowchart TB
-    subgraph ingest["1 · Ingest — public on-chain data only"]
-        A["Alchemy getNFTSales<br/>Ethereum NFT trades"]
-        E["Etherscan<br/>block ↔ time · wallet funding"]
-    end
+flowchart LR
+    A["Alchemy getNFTSales<br/>Etherscan"] --> D["ring detection<br/>graph cycles · networkx"]
+    D --> CC[("collusion_cases<br/>+ nft_trades")]
+    CC -- "case note" --> EMB["Titan Embeddings V2<br/>1024-dim"]
+    EMB --> FP[("flagged_patterns<br/>VECTOR 1024<br/>distributed vector index")]
 
-    subgraph detect["2 · Detect — Python"]
-        S["symmetric round-trip pairs"]
-        R["ring detection<br/>graph cycles · networkx"]
-        K["consolidate → collusion cases"]
-    end
+    NEW["daily run<br/>today's catch"] --> TR["triage<br/>cosine search vs memory"]
+    FP --> TR
+    TR --> LLM["Bedrock LLM<br/>plain-language rationale"]
+    LLM --> AN["analyst<br/>confirm / reject"]
+    AN -- "verdict becomes a row" --> FP
 
-    subgraph crdb["3 · CockroachDB Cloud — evidence AND memory, one database"]
-        T[("nft_trades")]
-        CC[("collusion_cases")]
-        FP[("flagged_patterns<br/>VECTOR 1024<br/>⚡ distributed vector index")]
-        MCP["Cloud Managed MCP Server<br/>read-only select_query"]
-    end
+    ASK["Ask the memory<br/>natural language"] --> MCP["Managed MCP Server<br/>read-only SQL"]
+    MCP --> CC
 
-    subgraph aws["4 · AWS Bedrock"]
-        EMB["Titan Text Embeddings V2<br/>→ 1024-dim"]
-        LLM["LLM → plain-language rationale"]
-    end
-
-    subgraph agent["5 · Agent loop — FastAPI on Vercel"]
-        DR["daily run → today's catch"]
-        TR["triage — cosine search vs confirmed memory"]
-        AN["analyst — confirm / reject"]
-        ASK["Ask the memory — natural language → SQL"]
-    end
-
-    A --> T
-    A --> S --> R --> K --> CC
-    E --> S
-    CC -- "case note" --> EMB --> FP
-    DR --> R
-    DR --> TR
-    TR -- "cosine similarity" --> FP
-    TR --> LLM
-    AN -- "verdict written as a row" --> FP
-    ASK --> MCP --> T
-    FP -. "memory gets sharper with every verdict" .-> TR
+    classDef crdb fill:#1a2b3d,stroke:#5b9dff,color:#e6edf3
+    classDef aws fill:#3d2a1a,stroke:#ffb84d,color:#e6edf3
+    class CC,FP,MCP crdb
+    class EMB,LLM aws
 ```
+
+<sub>Blue = CockroachDB Cloud · Amber = AWS Bedrock</sub>
 
 **The loop that matters** is the dashed line: every analyst verdict becomes a row in
 `flagged_patterns`, so the next triage searches a larger, sharper memory — and because it is
