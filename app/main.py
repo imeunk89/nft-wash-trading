@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
+from app import demo
 from src import ask_memory, bedrock, crdb_mcp, playbook
 from src.build_playbook import case_to_signal
 from src.db import connect
@@ -61,6 +62,8 @@ def index() -> str:
 
 @app.post("/api/triage")
 def api_triage(a: Activity) -> dict:
+    if demo.ENABLED:
+        return demo.lookup("triage", a.activity) or demo.UNAVAILABLE
     r = triage(a.activity)
     explanation = explain_model = None
     if r["verdict"] == "flag" and r["nearest_confirmed"]:
@@ -89,12 +92,16 @@ def api_triage(a: Activity) -> dict:
 
 @app.post("/api/confirm")
 def api_confirm(a: Activity) -> dict:
+    if demo.ENABLED:
+        return demo.lookup("confirm", a.activity) or demo.UNAVAILABLE
     pid = confirm(a.activity, source_case=LEARNED_CASE)
     return {"ok": True, "pattern_id": pid, "stats": _stats()}
 
 
 @app.post("/api/reject")
 def api_reject(a: Activity) -> dict:
+    if demo.ENABLED:
+        return demo.lookup("reject", a.activity) or demo.UNAVAILABLE
     pid = reject(a.activity)
     return {"ok": True, "pattern_id": pid, "stats": _stats()}
 
@@ -251,6 +258,8 @@ def api_case_basis(case_id: str) -> dict:
       2. The nearest already-decided cases (vector index) and how they were ruled,
          so the verdict is consistent with precedent instead of a lone judgment call.
     """
+    if demo.ENABLED:                       # precedent lookup needs a Bedrock embedding
+        return demo.lookup("case_basis", case_id) or demo.UNAVAILABLE
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             "SELECT case_id, wallets, n_wallets, n_rings, has_high_confidence, "
@@ -355,6 +364,8 @@ def api_case_verdict(v: Verdict) -> dict:
     """
     if v.verdict not in ("confirmed", "rejected"):
         return {"error": "verdict must be 'confirmed' or 'rejected'"}
+    if demo.ENABLED:                        # show the ruling; the demo cannot write
+        return demo.verdict_response(v.case_id, v.verdict)
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             "SELECT case_id, n_wallets, n_rings, has_high_confidence, n_trades, "
@@ -383,8 +394,21 @@ def api_case_verdict(v: Verdict) -> dict:
 
 @app.get("/api/mcp_status")
 def api_mcp_status() -> dict:
-    """Whether the managed-MCP path is wired up, for the UI to show or hide the panel."""
+    """Whether the managed-MCP path is wired up, for the UI to show or hide the panel.
+
+    The public demo ships no MCP key (a Cloud service-account key is write-capable),
+    so it reports configured from the snapshot instead — the panel still demonstrates
+    the feature, replaying answers and the SQL the model actually generated.
+    """
+    if demo.ENABLED:
+        return {"configured": bool(demo.data().get("ask")), "demo": True}
     return {"configured": crdb_mcp.available()}
+
+
+@app.get("/api/mode")
+def api_mode() -> dict:
+    """Lets the UI label a read-only deployment honestly."""
+    return {"demo": demo.ENABLED}
 
 
 @app.post("/api/ask")
@@ -393,6 +417,8 @@ def api_ask(q: Question) -> dict:
     question = q.question.strip()
     if not question:
         return {"error": "Ask a question first."}
+    if demo.ENABLED:                        # the SQL is written by a Bedrock model
+        return demo.lookup("ask", question) or demo.UNAVAILABLE
     try:
         return ask_memory.ask(question)
     except crdb_mcp.MCPError as e:
@@ -406,6 +432,8 @@ def api_ask(q: Question) -> dict:
 @app.post("/api/reset")
 def api_reset() -> dict:
     """Wipe analyst-learned + rejected patterns; keep the 37 base cases."""
+    if demo.ENABLED:                        # nothing was written, so nothing to wipe
+        return {"ok": True, "stats": demo.stats()}
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             # The baseline is defined positively: the 37 patterns mined from the

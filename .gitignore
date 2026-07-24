@@ -46,3 +46,4 @@ video_build/
 _to_delete/
 s3opt_*.jpg
 s3opts.png
+.demo-readonly-url.txt

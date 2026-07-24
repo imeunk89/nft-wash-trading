@@ -85,6 +85,9 @@
   .mem .row.q b{color:var(--mute)}
 
   /* ============ tabs ============ */
+  .demobanner{background:rgba(91,157,255,.08);border:1px solid rgba(91,157,255,.28);
+    border-radius:10px;padding:.8rem 1rem;margin:1.25rem 0 0;font-size:.82rem;line-height:1.6;color:var(--dim)}
+  .demobanner b{color:var(--txt)}
   .tabs{display:flex;gap:1.75rem;border-bottom:1px solid var(--line);margin-bottom:1.75rem}
   .tab{display:inline-flex;align-items:center;gap:.5rem;min-height:44px;
        padding:.625rem 0;background:none;border:0;border-bottom:2px solid transparent;
@@ -672,6 +675,12 @@
 </header>
 
 <div class="wrap">
+  <div id="demoBanner" class="demobanner" hidden>
+    <b>Public read-only demo.</b> The detections, wallets and evidence below are queried live
+    from CockroachDB. Rulings and AI rationales are replayed from a recorded run — this
+    deployment carries no write access and no AWS keys, so it can't alter the evidence or spend.
+    The full live loop is in the <a href="https://github.com/imeunk89/nft-wash-trading">repo</a> and the demo video.
+  </div>
   <div class="tabs" role="tablist" aria-label="Views">
     <button class="tab" role="tab" id="t0" aria-selected="true" aria-controls="sec-catch" onclick="showTab('catch')">
       <svg class="ico" aria-hidden="true"><use href="#i-activity"/></svg>Daily monitor</button>
@@ -1679,7 +1688,11 @@ async function askMemory(){
   }finally{ askBtn.disabled=false; askSpin.classList.remove('on'); }
 }
 
-renderEgs(); initAsk(); refresh(); loadCatch(); loadCases(); restartStory();
+async function initMode(){
+  try{ const m = await getJSON('/api/mode'); if(m.demo) demoBanner.hidden = false; }
+  catch(e){ /* banner is informational; never block the app on it */ }
+}
+initMode(); renderEgs(); initAsk(); refresh(); loadCatch(); loadCases(); restartStory();
 </script>
 </body>
 </html>
