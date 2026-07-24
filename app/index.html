@@ -1266,8 +1266,19 @@ function graphSVG(wallets,edges){
 /* ---------- chronological replay ---------- */
 /* Ordered by block_number, which is the real on-chain sequence. */
 let RP={seq:[],L:null,i:0,timer:null,total:0};
+/* The daily-monitor modal and the All-cases pane render the SAME case markup, so
+   their element ids coexist in the DOM. getElementById always returns the first
+   (the hidden pane), which made the modal's Replay button look dead while the
+   animation ran off-screen. Resolve against whichever container is on screen. */
+function rpRoot(){
+  return (typeof modal!=='undefined' && modal.classList.contains('on')) ? modalBody : detail;
+}
+function rpEl(id){
+  const r=rpRoot();
+  return (r && r.querySelector('#'+id)) || document.getElementById(id);
+}
 function replayFrame(){
-  const {seq,L,i}=RP, svg=document.getElementById('ringSVG');
+  const {seq,L,i}=RP, svg=rpEl('ringSVG');
   if(!svg||!L) return;
   let E='';
   for(let k=0;k<=i && k<seq.length;k++){
@@ -1280,8 +1291,8 @@ function replayFrame(){
   }
   const t=seq[i], hot=t?new Set([t.source,t.target]):null;
   svg.innerHTML=ARW+E+nodesSVG(L,hot);
-  const bar=document.getElementById('rpBar'); if(bar) bar.value=i;
-  const out=document.getElementById('rpOut');
+  const bar=rpEl('rpBar'); if(bar) bar.value=i;
+  const out=rpEl('rpOut');
   if(out&&t) out.innerHTML=`trade <b>${i+1}</b>/<b>${seq.length}</b> · block <b>${t.block.toLocaleString()}</b>
     · token <b>#${t.token_id}</b> · <b>${t.eth}</b> ETH<br>
     <span class="rpw">${t.source.slice(0,10)}…</span> sold to <span class="rpw">${t.target.slice(0,10)}…</span>`;
@@ -1292,17 +1303,17 @@ const RP_TICK = 80;
 let rpSpeed = 2;                              // default 2x -> 40ms/trade
 function rpSetSpeed(x, btn){
   rpSpeed = x;
-  document.querySelectorAll('.spd').forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
+  (rpRoot()||document).querySelectorAll('.spd').forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
   if(RP.timer){ rpPause(); rpPlay(); }        // restart the timer at the new rate
 }
 function rpSeek(v){ rpPause(); RP.i=Math.max(0,Math.min(RP.seq.length-1,+v)); replayFrame(); }
-function rpPause(){ if(RP.timer){clearInterval(RP.timer);RP.timer=null;} const b=document.getElementById('rpPlay');
+function rpPause(){ if(RP.timer){clearInterval(RP.timer);RP.timer=null;} const b=rpEl('rpPlay');
   if(b) b.innerHTML=ic('play')+'Replay'; }
 function rpPlay(){
   if(RP.timer){ rpPause(); return; }
   if(!RP.seq.length) return;
   if(RP.i>=RP.seq.length-1) RP.i=0;
-  const b=document.getElementById('rpPlay'); if(b) b.innerHTML=ic('pause')+'Pause';
+  const b=rpEl('rpPlay'); if(b) b.innerHTML=ic('pause')+'Pause';
   replayFrame();
   const ms = Math.max(16, (REDUCED?400:RP_TICK) / rpSpeed);
   RP.timer=setInterval(()=>{
@@ -1314,17 +1325,17 @@ function rpStart(d){
   rpPause();
   RP={seq:d.sequence||[], L:ringLayout(d.wallets,d.edges), i:0, timer:null,
       total:d.sequence_total||0};
-  const svg=document.getElementById('ringSVG');
+  const svg=rpEl('ringSVG');
   if(svg&&RP.seq.length){ svg.setAttribute('aria-label',
     `Chronological replay of ${RP.seq.length} trades in this ring`); replayFrame(); }
 }
 function renderStaticRing(d){
-  const svg=document.getElementById('ringSVG'); if(!svg||!d) return;
+  const svg=rpEl('ringSVG'); if(!svg||!d) return;
   const tmp=document.createElement('div'); tmp.innerHTML=graphSVG(d.wallets,d.edges).svg;
   svg.innerHTML=tmp.firstElementChild.innerHTML;
   svg.setAttribute('aria-label', tmp.firstElementChild.getAttribute('aria-label'));
-  RP.i=0; const bar=document.getElementById('rpBar'); if(bar) bar.value=0;
-  const out=document.getElementById('rpOut');
+  RP.i=0; const bar=rpEl('rpBar'); if(bar) bar.value=0;
+  const out=rpEl('rpOut');
   if(out) out.innerHTML=`Showing the whole ring at once. Press <b>Replay</b> to watch it form trade by trade.`;
 }
 function rpExit(d){ rpPause(); renderStaticRing(d); }
