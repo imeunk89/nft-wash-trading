@@ -47,6 +47,15 @@ watch the ring form trade by trade in block order — the real on-chain sequence
 
 ![Case evidence: ring graph and the same-NFT recirculation table](docs/img/case-evidence.png)
 
+### 4. The ruling, not just a flag
+
+Confirming a ring isn't a bare button. Every ruling shows a **decision checklist computed from
+that ring's own trades** (met 2/4 here — the honest miss is left visible, not hidden) and the
+**five closest precedents already in memory**, all confirmed, so the verdict is grounded and
+consistent with what came before.
+
+![Analyst ruling: decision checklist and five nearest confirmed precedents](docs/img/analyst-ruling.png)
+
 ---
 
 ## Public demo mode
