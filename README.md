@@ -4,15 +4,22 @@ A memory-driven agent that detects NFT wash trading and **learns to catch it ear
 
 Built for the **CockroachDB × AWS "Build with Agentic Memory" hackathon**.
 
+**🔴 Live demo:** [nft-wash-trading-nu.vercel.app](https://nft-wash-trading-nu.vercel.app) — public, read-only (no write access, no AWS keys — see *Public demo mode* below).
+**🎥 Demo video:** [youtu.be/5o7yhh2lGls](https://youtu.be/5o7yhh2lGls) — "Catching NFT Wash Trading with Agentic Memory"
+
 > **Data & scope:** Public on-chain data only (Dune Analytics `nft.trades` + Etherscan). Target: LooksRare / Ethereum / 2022, where independent research (Niu et al., 2024) estimated ~94.5% of volume was wash trading. No proprietary or exchange-internal data or methodology is used.
 
 ---
 
 ## The demo
 
+Run it yourself:
+
 ```bash
 uvicorn app.main:app --port 8100     # then open http://localhost:8100
 ```
+
+Or use the [live public deployment](https://nft-wash-trading-nu.vercel.app) — see *Public demo mode* below for what that deployment can and can't do.
 
 ### 1. Daily monitor — the analyst's morning worklist
 
@@ -39,6 +46,27 @@ times**. A genuine sale moves an NFT to a new owner; these loops never do. Press
 watch the ring form trade by trade in block order — the real on-chain sequence, not an animation.
 
 ![Case evidence: ring graph and the same-NFT recirculation table](docs/img/case-evidence.png)
+
+---
+
+## Public demo mode
+
+The [live deployment](https://nft-wash-trading-nu.vercel.app) connects with a **read-only**
+CockroachDB user and ships **no AWS credentials**, so it can't spend money and can't write —
+by construction, not just by convention. Two layers back this up:
+
+1. **Database-level:** `demo_ro` has `SELECT` only. Verified directly: `INSERT`/`UPDATE`/`DELETE`
+   against it all fail with a permission error, even if application code had a bug.
+2. **Application-level:** with no `AWS_ACCESS_KEY_ID` present, [`app/demo.py`](app/demo.py) flips
+   `demo.ENABLED` on automatically. Every Bedrock-backed response (triage, rulings, "Ask the
+   memory") is replayed from [`app/demo_data.json`](app/demo_data.json) — a snapshot of one real
+   run against the live cluster and live Bedrock (`python -m src.make_demo_snapshot`), not
+   fabricated. Confirm/reject verdicts are shown but not persisted.
+
+**What's genuinely live in the demo:** every detected case, wallet, ring graph, and the daily-run
+history — all queried from CockroachDB in real time. **What's replayed:** AI-generated rationales
+and the scripted "memory learns" walkthrough. Run it locally with your own keys (see *Setup*
+below) for the full read-write loop.
 
 ---
 
